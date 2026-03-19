@@ -1,0 +1,183 @@
+name: Reusable Lucidchart Deployment
+
+on:
+  # push:
+  #   paths:
+  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  workflow_call:
+    inputs:
+      changed-files:
+        description: 'Comma-separated list of changed .drawio files, or "all"'
+        required: false
+        type: string
+        default: 'all'
+      force-deploy:
+        description: 'Force deployment regardless of change detection'
+        required: false
+        type: boolean
+        default: false
+      mappings-file:
+        description: 'Path to the lucidchart-mappings.txt file'
+        required: false
+        type: string
+        default: '.github/lucidchart-mappings.txt'
+      commit-hashes:
+        description: 'Commit deployment hashes back to the repository'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      LUCID_TOKEN:
+        description: 'Lucidchart OAuth token'
+        required: true
+      SOURCE_REPO_TOKEN:
+        description: 'GitHub token with access to monte-carlo-data/secure-design-practicum (for fetching deploy scripts)'
+        required: false
+    outputs:
+      deployed-count:
+        description: 'Number of files deployed'
+        value: ${{ jobs.deploy-to-lucidchart.outputs.deployed-count }}
+      deploy-status:
+        description: 'Status of the deployment'
+        value: ${{ jobs.deploy-to-lucidchart.outputs.deploy-status }}
+
+jobs:
+  deploy-to-lucidchart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      deployed-count: ${{ steps.deploy.outputs.deployed-count }}
+      deploy-status: ${{ steps.status.outputs.result }}
+
+    steps:
+    - name: Checkout caller repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 2
+
+    - name: Checkout security-practicum scripts
+      uses: actions/checkout@v6
+      with:
+        repository: monte-carlo-data/secure-design-practicum
+        token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        path: .security-practicum
+        sparse-checkout: |
+          .github/scripts/deploy-to-lucidchart.sh
+        sparse-checkout-cone-mode: false
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl
+
+    - name: Validate mappings file
+      run: |
+        if [ ! -f "${{ inputs.mappings-file }}" ]; then
+          echo "::error::Mappings file not found: ${{ inputs.mappings-file }}"
+          exit 1
+        fi
+
+        if ! grep -q '^[^#]' "${{ inputs.mappings-file }}" 2>/dev/null; then
+          echo "::warning::Mappings file contains no active mappings"
+        fi
+
+    - name: Detect changed files
+      id: changes
+      run: |
+        if [ "${{ inputs.force-deploy }}" = "true" ] || [ "${{ inputs.changed-files }}" = "all" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=all" >> $GITHUB_OUTPUT
+          echo "Force/all deployment requested"
+          exit 0
+        fi
+
+        if [ -n "${{ inputs.changed-files }}" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=${{ inputs.changed-files }}" >> $GITHUB_OUTPUT
+          echo "Deploying specified files: ${{ inputs.changed-files }}"
+          exit 0
+        fi
+
+        # Auto-detect changes from git
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=all" >> $GITHUB_OUTPUT
+          echo "Manual dispatch - deploying all"
+          exit 0
+        fi
+
+        changed_files=$(git diff --name-only HEAD~1 HEAD | grep '\.drawio$' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$changed_files" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+          echo "Changed draw.io files: $changed_files"
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No draw.io files changed"
+        fi
+
+    - name: Deploy to Lucidchart
+      id: deploy
+      if: steps.changes.outputs.changes == 'true'
+      env:
+        LUCID_TOKEN: ${{ secrets.LUCID_TOKEN }}
+        CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
+        MAPPINGS_FILE: ${{ inputs.mappings-file }}
+      run: |
+        chmod +x .security-practicum/.github/scripts/deploy-to-lucidchart.sh
+
+        if [ "${{ inputs.force-deploy }}" = "true" ] || [ "$CHANGED_FILES" = "all" ]; then
+          .security-practicum/.github/scripts/deploy-to-lucidchart.sh --force
+        else
+          .security-practicum/.github/scripts/deploy-to-lucidchart.sh --deploy-changed
+        fi
+        echo "deployed-count=$(echo "$CHANGED_FILES" | tr ',' '\n' | wc -l | xargs)" >> $GITHUB_OUTPUT
+
+    - name: Commit deployment hashes
+      if: inputs.commit-hashes && steps.changes.outputs.changes == 'true'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        if [ -d ".github/.deployment-hashes/lucidchart" ]; then
+          git add .github/.deployment-hashes/lucidchart/
+          if git diff --staged --quiet; then
+            echo "No hash changes to commit"
+          else
+            git commit -m "Update Lucidchart deployment hashes [skip ci]"
+            git push
+          fi
+        fi
+
+    - name: Skip deployment
+      if: steps.changes.outputs.changes != 'true'
+      run: |
+        echo "No changes detected, skipping Lucidchart deployment"
+
+    - name: Set deploy status
+      id: status
+      if: always()
+      run: |
+        if [ "${{ steps.deploy.outcome }}" = "success" ]; then
+          echo "result=success" >> $GITHUB_OUTPUT
+        elif [ "${{ steps.changes.outputs.changes }}" != "true" ]; then
+          echo "result=skipped" >> $GITHUB_OUTPUT
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Deployment summary
+      if: always() && steps.changes.outputs.changes == 'true'
+      run: |
+        echo "## Lucidchart Deployment Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** \`${{ github.repository }}\` | **Branch:** \`${{ github.ref_name }}\` | **Commit:** \`${GITHUB_SHA::7}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Mappings file:** \`${{ inputs.mappings-file }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.deploy.outcome }}" = "success" ]; then
+          echo "✅ **Deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Deployment failed**" >> $GITHUB_STEP_SUMMARY
+        fi

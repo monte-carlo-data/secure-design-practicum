@@ -1,0 +1,166 @@
+name: Reusable SDD Security Review
+
+on:
+  # push:
+  #   paths:
+  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  workflow_call:
+    inputs:
+      notion-sdd-url:
+        description: 'Notion SDD page URL (required)'
+        required: true
+        type: string
+      source-repos:
+        description: 'Source code repos (comma-separated, e.g. your-org/repo1,your-org/repo2)'
+        required: false
+        type: string
+        default: ''
+      source-file-patterns:
+        description: 'File path patterns to fetch from repos (comma-separated, e.g. src/auth/,models.py,config/)'
+        required: false
+        type: string
+        default: ''
+      spec-markdown-path:
+        description: 'Path to specification markdown file(s) in the caller repo'
+        required: false
+        type: string
+        default: ''
+      architecture-diagram-path:
+        description: 'Path to architecture diagram file (PNG, SVG, draw.io) in the caller repo'
+        required: false
+        type: string
+        default: ''
+      security-concerns-path:
+        description: 'Path to markdown file with security concerns in the caller repo'
+        required: false
+        type: string
+        default: ''
+      platform-context-path:
+        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
+        required: false
+        type: string
+        default: ''
+      team-questions-path:
+        description: 'Path to markdown file with specific questions the team wants addressed'
+        required: false
+        type: string
+        default: ''
+      skip-notifications:
+        description: 'Set to true to suppress Slack and Linear notifications for this run (e.g. for testing or re-runs)'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: 'Anthropic API key for Claude'
+        required: true
+      NOTION_TOKEN:
+        description: 'Notion integration token'
+        required: true
+      SOURCE_REPO_TOKEN:
+        description: 'GitHub token with access to source repos (falls back to github.token)'
+        required: false
+      SDD_SLACK_WEBHOOK_URL:
+        description: 'Slack incoming webhook URL for your security channel — notifications fire automatically when set'
+        required: false
+      LINEAR_API_KEY:
+        description: 'Linear API key for the Security team — triage tickets fire automatically when set and involvement is Required'
+        required: false
+      LINEAR_TEAM_ID:
+        description: 'Linear team UUID for triage ticket creation'
+        required: false
+      LINEAR_TRIAGE_STATUS_ID:
+        description: 'Linear status UUID for the triage state'
+        required: false
+    outputs:
+      review-status:
+        description: 'Status of the SDD review (success or failure)'
+        value: ${{ jobs.sdd-review.outputs.status }}
+
+jobs:
+  sdd-review:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.review-status.outputs.result }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - name: Checkout caller repo
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Checkout security-practicum scripts
+      uses: actions/checkout@v6
+      with:
+        repository: monte-carlo-data/secure-design-practicum
+        token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        path: .security-practicum
+        sparse-checkout: |
+          .github/scripts/sdd_reviewer.py
+          .github/scripts/sdd_notify.py
+        sparse-checkout-cone-mode: false
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install anthropic requests notion-client PyYAML
+
+    - name: Run SDD Security Review
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        NOTION_SDD_URL: ${{ inputs.notion-sdd-url }}
+        SOURCE_REPOS: ${{ inputs.source-repos }}
+        SOURCE_FILE_PATTERNS: ${{ inputs.source-file-patterns }}
+        SPEC_MARKDOWN_PATH: ${{ inputs.spec-markdown-path }}
+        ARCHITECTURE_DIAGRAM_PATH: ${{ inputs.architecture-diagram-path }}
+        SECURITY_CONCERNS_PATH: ${{ inputs.security-concerns-path }}
+        PLATFORM_CONTEXT_PATH: ${{ inputs.platform-context-path }}
+        TEAM_QUESTIONS_PATH: ${{ inputs.team-questions-path }}
+        REPO_FULL_NAME: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        python .security-practicum/.github/scripts/sdd_reviewer.py
+
+    - name: Notify Security
+      if: success() && inputs.skip-notifications != true
+      env:
+        REVIEW_OUTPUT_FILE: sdd_review_output.json
+        REVIEW_URL: ${{ inputs.notion-sdd-url }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
+        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
+      run: |
+        python3 .security-practicum/.github/scripts/sdd_notify.py
+
+    - name: Set review status
+      id: review-status
+      if: always()
+      run: |
+        if [ -f sdd_review_output.json ]; then
+          echo "result=success" >> $GITHUB_OUTPUT
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload review results
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: sdd-review-results
+        path: |
+          sdd_review_output.json
+          sdd_review_questions.md
+          sdd_review_architecture.drawio
+        retention-days: 90

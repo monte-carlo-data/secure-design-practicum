@@ -1,0 +1,22 @@
+# Notion Page Mappings
+# Format: markdown_file_path=notion_page_id
+# Lines starting with # are comments
+
+# How to find a Notion page ID:
+#   1. Open the page in Notion
+#   2. Click "Share" > "Copy link"
+#   3. The 32-character hex string at the end of the URL is the page ID
+
+# Security review guides and docs
+# security-review-guide.md=YOUR_NOTION_PAGE_ID
+# security-architecture-review-template.md=YOUR_NOTION_PAGE_ID
+# reviews/TRACKING.md=YOUR_NOTION_PAGE_ID
+
+# Guides
+# guides/quick-security-review.md=YOUR_NOTION_PAGE_ID
+# guides/self-service-checklist.md=YOUR_NOTION_PAGE_ID
+# guides/making-a-github-repo-public.md=YOUR_NOTION_PAGE_ID
+
+# Automation docs
+# automation/sdd-review.md=YOUR_NOTION_PAGE_ID
+# automation/pr-review.md=YOUR_NOTION_PAGE_ID

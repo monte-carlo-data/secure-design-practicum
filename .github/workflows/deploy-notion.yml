@@ -1,0 +1,139 @@
+name: Deploy Markdown to Notion
+on:
+  # push:
+  #   branches: [ main ]
+  #   paths:
+  #     - '**/*.md'
+  #     - '.github/notion-mappings.txt'
+  #     - '.github/workflows/deploy-notion.yml'
+  #     - '.github/scripts/deploy-to-notion.sh'
+  workflow_dispatch:
+    inputs:
+      force_all_pages:
+        description: 'Force deploy all mapped pages'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy-to-notion:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0  # Needed to diff across push ranges
+    
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl
+    
+    - name: Check for mapped markdown changes
+      id: check_changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_all_pages }}" = "true" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=all" >> $GITHUB_OUTPUT
+          echo "Manual full deployment triggered"
+          exit 0
+        fi
+
+        base_sha="${{ github.event.before }}"
+        head_sha="${{ github.sha }}"
+        if [ -n "$base_sha" ] && [ "$base_sha" != "0000000000000000000000000000000000000000" ]; then
+          changed_files=$(git diff --name-only "$base_sha" "$head_sha")
+        else
+          changed_files=$(git diff --name-only HEAD~1 HEAD)
+        fi
+
+        if [ -z "$changed_files" ]; then
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No file changes detected"
+          exit 0
+        fi
+
+        mapped_files=$(grep -v '^[[:space:]]*#' .github/notion-mappings.txt | grep '=' | cut -d'=' -f1 | sed '/^[[:space:]]*$/d')
+        if [ -z "$mapped_files" ]; then
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No active mappings found"
+          exit 0
+        fi
+
+        mapped_changes_file=$(mktemp)
+
+        # Include directly changed mapped markdown files.
+        while IFS= read -r file_path; do
+          if echo "$changed_files" | grep -Fxq "$file_path"; then
+            echo "$file_path" >> "$mapped_changes_file"
+          fi
+        done <<< "$mapped_files"
+
+        # If mappings changed, deploy only the files whose mapping lines changed.
+        if echo "$changed_files" | grep -Fxq ".github/notion-mappings.txt"; then
+          mapping_range_base="$base_sha"
+          if [ -z "$mapping_range_base" ] || [ "$mapping_range_base" = "0000000000000000000000000000000000000000" ]; then
+            mapping_range_base="HEAD~1"
+          fi
+
+          while IFS= read -r mapped_file; do
+            [ -z "$mapped_file" ] && continue
+            if echo "$mapped_files" | grep -Fxq "$mapped_file" && [ -f "$mapped_file" ]; then
+              echo "$mapped_file" >> "$mapped_changes_file"
+            fi
+          done < <(git diff --unified=0 "$mapping_range_base" "$head_sha" -- .github/notion-mappings.txt \
+            | sed -nE 's/^[+-]([^#][^=]*)=.*/\1/p' \
+            | sed '/^[[:space:]]*$/d' \
+            | sort -u)
+        fi
+
+        mapped_changes=$(sort -u "$mapped_changes_file" | tr '\n' ',' | sed 's/,$//')
+        rm -f "$mapped_changes_file"
+
+        if [ -n "$mapped_changes" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=$mapped_changes" >> $GITHUB_OUTPUT
+          echo "Mapped markdown changes detected: $mapped_changes"
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No mapped markdown files changed"
+        fi
+    
+    - name: Make script executable
+      if: steps.check_changes.outputs.changes == 'true'
+      run: chmod +x .github/scripts/deploy-to-notion.sh
+    
+    - name: Deploy to Notion
+      if: steps.check_changes.outputs.changes == 'true'
+      env:
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        CHANGED_FILES: ${{ steps.check_changes.outputs.changed_files }}
+      run: |
+        if [ "$CHANGED_FILES" = "all" ]; then
+          .github/scripts/deploy-to-notion.sh --force
+        else
+          .github/scripts/deploy-to-notion.sh --deploy-changed
+        fi
+    
+    - name: Skip deployment
+      if: steps.check_changes.outputs.changes == 'false'
+      run: |
+        echo "No mapped markdown changes detected"
+        echo "Skipping Notion deployment"
+    
+    - name: Post deployment status
+      if: always() && steps.check_changes.outputs.changes == 'true'
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ Markdown content successfully deployed to Notion"
+        else
+          echo "❌ Failed to deploy markdown content to Notion"
+          exit 1
+        fi

@@ -1,0 +1,132 @@
+name: PR Security Review
+
+on:
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   paths:
+  #     - '.github/pr-review-config.yml'
+
+  workflow_dispatch:
+    inputs:
+      pr_review_url:
+        description: 'GitHub PR URL to review (https://github.com/org/repo/pull/N)'
+        required: true
+        type: string
+      notion_sdd_url:
+        description: 'Notion SDD page URL (optional — provides design context)'
+        required: false
+        type: string
+      skip_notifications:
+        description: 'Set to true to suppress Slack and Linear notifications (e.g. for testing or re-runs)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  pr-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Check for prior run on this PR/SHA (PR trigger)
+      id: pr-review-cache
+      if: github.event_name == 'pull_request'
+      uses: actions/cache@v5
+      with:
+        path: .pr-review-marker
+        key: pr-review-${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+        restore-keys: |
+          pr-review-${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}-
+
+    - name: Skip if already reviewed this commit (PR trigger)
+      if: >
+        github.event_name == 'pull_request' &&
+        steps.pr-review-cache.outputs.cache-hit == 'true'
+      run: |
+        echo "PR security review already ran for this commit SHA — skipping to avoid duplicate findings."
+        exit 0
+
+    - name: Load config from file (PR trigger)
+      id: config
+      if: github.event_name == 'pull_request'
+      run: |
+        CONFIG_FILE=".github/pr-review-config.yml"
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "::error::Missing .github/pr-review-config.yml"
+          exit 1
+        fi
+
+        python3 -c "
+        import yaml, os, sys
+        with open('$CONFIG_FILE') as f:
+            cfg = yaml.safe_load(f) or {}
+        pr_review_url = cfg.get('pr_review_url', '') or ''
+        if not pr_review_url:
+            print('::error::pr_review_url is required in .github/pr-review-config.yml')
+            sys.exit(1)
+        out = os.environ['GITHUB_OUTPUT']
+        with open(out, 'a') as gh:
+            gh.write(f'pr_review_url={pr_review_url}\n')
+            gh.write(f'notion_sdd_url={cfg.get(\"notion_sdd_url\", \"\") or \"\"}\n')
+            gh.write(f'skip_notifications={str(cfg.get(\"skip_notifications\", False)).lower()}\n')
+        "
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install anthropic requests notion-client PyYAML
+
+    - name: Run PR Security Review
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        PR_REVIEW_URL: ${{ inputs.pr_review_url || steps.config.outputs.pr_review_url }}
+        NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
+        REPO_FULL_NAME: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        python .github/scripts/pr_reviewer.py
+
+    - name: Notify Security
+      if: >
+        success() &&
+        inputs.skip_notifications != true &&
+        steps.config.outputs.skip_notifications != 'true'
+      env:
+        REVIEW_OUTPUT_FILE: pr_review_output.json
+        REVIEW_URL: ${{ inputs.pr_review_url || steps.config.outputs.pr_review_url }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
+        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
+      run: |
+        python3 .github/scripts/sdd_notify.py
+
+    - name: Save run marker for cache (PR trigger)
+      if: github.event_name == 'pull_request' && success()
+      run: |
+        mkdir -p .pr-review-marker
+        echo '{"sha":"${{ github.sha }}","run_id":"${{ github.run_id }}"}' > .pr-review-marker/marker.json
+
+    - name: Upload review results
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: pr-review-results
+        path: |
+          pr_review_output.json
+          pr_review_questions.md
+          pr_review_architecture.drawio
+        retention-days: 90

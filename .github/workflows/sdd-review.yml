@@ -1,0 +1,189 @@
+name: SDD Security Review
+
+on:
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   paths:
+  #     - '.github/sdd-review-config.yml'
+
+  workflow_dispatch:
+    inputs:
+      notion_sdd_url:
+        description: 'Notion SDD page URL (required)'
+        required: true
+        type: string
+      source_repos:
+        description: 'Source code repos (comma-separated, e.g. your-org/repo1,your-org/repo2)'
+        required: false
+        type: string
+      source_file_patterns:
+        description: 'File path patterns to fetch from repos (comma-separated, e.g. src/auth/,models.py,config/)'
+        required: false
+        type: string
+      spec_markdown_path:
+        description: 'Path to specification markdown file(s) in this repo'
+        required: false
+        type: string
+      architecture_diagram_path:
+        description: 'Path to architecture diagram file (PNG, SVG, draw.io) in this repo'
+        required: false
+        type: string
+      security_concerns_path:
+        description: 'Path to markdown file with security concerns in this repo'
+        required: false
+        type: string
+      platform_context_path:
+        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
+        required: false
+        type: string
+      team_questions_path:
+        description: 'Path to markdown file with specific questions the team wants addressed'
+        required: false
+        type: string
+      skip_notifications:
+        description: 'Set to true to suppress Slack and Linear notifications for this run (e.g. for testing or re-runs)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  sdd-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Load config from file (PR trigger)
+      id: config
+      if: github.event_name == 'pull_request'
+      run: |
+        CONFIG_FILE=".github/sdd-review-config.yml"
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "::error::Missing .github/sdd-review-config.yml"
+          exit 1
+        fi
+
+        python3 -c "
+        import yaml, os
+        with open('$CONFIG_FILE') as f:
+            cfg = yaml.safe_load(f) or {}
+        out = os.environ['GITHUB_OUTPUT']
+        with open(out, 'a') as gh:
+            for key in [
+                'notion_sdd_url', 'source_repos', 'source_file_patterns',
+                'spec_markdown_path', 'architecture_diagram_path',
+                'security_concerns_path', 'platform_context_path',
+                'team_questions_path', 'skip_notifications',
+            ]:
+                val = cfg.get(key, '') or ''
+                gh.write(f'{key}={val}\n')
+        "
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install anthropic requests notion-client PyYAML
+
+    - name: Run SDD Security Review
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
+        SOURCE_REPOS: ${{ inputs.source_repos || steps.config.outputs.source_repos }}
+        SOURCE_FILE_PATTERNS: ${{ inputs.source_file_patterns || steps.config.outputs.source_file_patterns }}
+        SPEC_MARKDOWN_PATH: ${{ inputs.spec_markdown_path || steps.config.outputs.spec_markdown_path }}
+        ARCHITECTURE_DIAGRAM_PATH: ${{ inputs.architecture_diagram_path || steps.config.outputs.architecture_diagram_path }}
+        SECURITY_CONCERNS_PATH: ${{ inputs.security_concerns_path || steps.config.outputs.security_concerns_path }}
+        PLATFORM_CONTEXT_PATH: ${{ inputs.platform_context_path || steps.config.outputs.platform_context_path }}
+        TEAM_QUESTIONS_PATH: ${{ inputs.team_questions_path || steps.config.outputs.team_questions_path }}
+        REPO_FULL_NAME: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        python .github/scripts/sdd_reviewer.py
+
+    - name: Notify Security
+      if: >
+        success() &&
+        inputs.skip_notifications != true &&
+        steps.config.outputs.skip_notifications != 'true'
+      env:
+        REVIEW_OUTPUT_FILE: sdd_review_output.json
+        REVIEW_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
+        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
+      run: |
+        python3 .github/scripts/sdd_notify.py
+
+    - name: Append draft row to TRACKING.md
+      if: success()
+      id: tracking
+      env:
+        NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        ACTOR: ${{ github.actor }}
+      run: |
+        python3 .github/scripts/update_sdd_tracking.py
+
+    - name: Open PR to update TRACKING.md
+      if: success() && github.event_name == 'workflow_dispatch'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        BRANCH="sdd-tracking/$(date +%Y%m%d-%H%M%S)"
+        git checkout -b "$BRANCH"
+        git add reviews/TRACKING.md 2>/dev/null || true
+
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+          exit 0
+        fi
+
+        SDD_TITLE=$(python3 -c "import json; print(json.load(open('sdd_review_output.json')).get('sdd_title', 'Unknown SDD'))")
+        git commit -m "chore: draft tracking entry for \"${SDD_TITLE}\""
+        git push origin "$BRANCH"
+
+        PR_TITLE="SDD Review tracking: ${SDD_TITLE}"
+        EXISTING_PR=$(gh pr list --state open --search "\"${PR_TITLE}\" in:title" --json number,headRefName --jq '.[0]')
+        EXISTING_NUMBER=$(echo "$EXISTING_PR" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('number',''))" 2>/dev/null || true)
+        EXISTING_BRANCH=$(echo "$EXISTING_PR" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('headRefName',''))" 2>/dev/null || true)
+
+        if [ -n "$EXISTING_NUMBER" ] && [ -n "$EXISTING_BRANCH" ]; then
+          git push origin "$BRANCH"
+          gh pr comment "$EXISTING_NUMBER" --body "Re-run updated TRACKING.md — pushed to \`${BRANCH}\`. Consider merging the latest branch or closing this PR and opening a fresh one."
+          echo "Existing open PR #${EXISTING_NUMBER} found — commented with updated branch reference"
+        else
+          gh pr create \
+            --title "${PR_TITLE}" \
+            --body-file .github/scripts/sdd_tracking_pr_body.md \
+            --base main \
+            --head "$BRANCH"
+        fi
+
+    - name: Upload review results
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: sdd-review-results
+        path: |
+          sdd_review_output.json
+          sdd_review_questions.md
+          sdd_review_architecture.drawio
+        retention-days: 90

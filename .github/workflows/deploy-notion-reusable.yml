@@ -1,0 +1,169 @@
+name: Reusable Notion Deployment
+
+on:
+  # push:
+  #   paths:
+  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  workflow_call:
+    inputs:
+      changed-files:
+        description: 'Comma-separated list of changed markdown files, or "all"'
+        required: false
+        type: string
+        default: 'all'
+      force-deploy:
+        description: 'Force deployment regardless of change detection'
+        required: false
+        type: boolean
+        default: false
+      mappings-file:
+        description: 'Path to the notion-mappings.txt file'
+        required: false
+        type: string
+        default: '.github/notion-mappings.txt'
+    secrets:
+      NOTION_TOKEN:
+        description: 'Notion integration token'
+        required: true
+      SOURCE_REPO_TOKEN:
+        description: 'GitHub token with access to monte-carlo-data/secure-design-practicum (for fetching deploy scripts)'
+        required: false
+    outputs:
+      deployed-count:
+        description: 'Number of files deployed'
+        value: ${{ jobs.deploy-to-notion.outputs.deployed-count }}
+      deploy-status:
+        description: 'Status of the deployment'
+        value: ${{ jobs.deploy-to-notion.outputs.deploy-status }}
+
+jobs:
+  deploy-to-notion:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      deployed-count: ${{ steps.deploy.outputs.deployed-count }}
+      deploy-status: ${{ steps.status.outputs.result }}
+
+    steps:
+    - name: Checkout caller repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 2
+
+    - name: Checkout security-practicum scripts
+      uses: actions/checkout@v6
+      with:
+        repository: monte-carlo-data/secure-design-practicum
+        token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        path: .security-practicum
+        sparse-checkout: |
+          .github/scripts/deploy-to-notion.sh
+        sparse-checkout-cone-mode: false
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl
+
+    - name: Validate mappings file
+      run: |
+        if [ ! -f "${{ inputs.mappings-file }}" ]; then
+          echo "::error::Mappings file not found: ${{ inputs.mappings-file }}"
+          exit 1
+        fi
+
+        if ! grep -q '^[^#]' "${{ inputs.mappings-file }}" 2>/dev/null; then
+          echo "::warning::Mappings file contains no active mappings"
+        fi
+
+    - name: Detect changed files
+      id: changes
+      run: |
+        if [ "${{ inputs.force-deploy }}" = "true" ] || [ "${{ inputs.changed-files }}" = "all" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=all" >> $GITHUB_OUTPUT
+          echo "Force/all deployment requested"
+          exit 0
+        fi
+
+        if [ -n "${{ inputs.changed-files }}" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=${{ inputs.changed-files }}" >> $GITHUB_OUTPUT
+          echo "Deploying specified files: ${{ inputs.changed-files }}"
+          exit 0
+        fi
+
+        # Auto-detect changes from git
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=all" >> $GITHUB_OUTPUT
+          echo "Manual dispatch - deploying all"
+          exit 0
+        fi
+
+        changed_files=$(git diff --name-only HEAD~1 HEAD | grep '\.md$' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$changed_files" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+          echo "Changed markdown files: $changed_files"
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No markdown files changed"
+        fi
+
+    - name: Make script executable
+      if: steps.changes.outputs.changes == 'true'
+      run: chmod +x .security-practicum/.github/scripts/deploy-to-notion.sh
+
+    - name: Deploy to Notion
+      id: deploy
+      if: steps.changes.outputs.changes == 'true'
+      env:
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
+        MAPPINGS_FILE: ${{ inputs.mappings-file }}
+      run: |
+        if [ "${{ inputs.force-deploy }}" = "true" ] || [ "$CHANGED_FILES" = "all" ]; then
+          .security-practicum/.github/scripts/deploy-to-notion.sh --force
+        else
+          .security-practicum/.github/scripts/deploy-to-notion.sh --deploy-changed
+        fi
+        echo "deployed-count=$(echo "$CHANGED_FILES" | tr ',' '\n' | wc -l | xargs)" >> $GITHUB_OUTPUT
+
+    - name: Skip deployment
+      if: steps.changes.outputs.changes != 'true'
+      run: |
+        echo "No changes detected, skipping Notion deployment"
+
+    - name: Set deploy status
+      id: status
+      if: always()
+      run: |
+        if [ "${{ steps.deploy.outcome }}" = "success" ]; then
+          echo "result=success" >> $GITHUB_OUTPUT
+        elif [ "${{ steps.changes.outputs.changes }}" != "true" ]; then
+          echo "result=skipped" >> $GITHUB_OUTPUT
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Deployment summary
+      if: always() && steps.changes.outputs.changes == 'true'
+      run: |
+        echo "## Notion Deployment Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** \`${{ github.repository }}\` | **Branch:** \`${{ github.ref_name }}\` | **Commit:** \`${GITHUB_SHA::7}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Mappings file:** \`${{ inputs.mappings-file }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.deploy.outcome }}" = "success" ]; then
+          echo "✅ **Deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Deployment failed**" >> $GITHUB_STEP_SUMMARY
+        fi
