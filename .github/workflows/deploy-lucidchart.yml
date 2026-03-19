@@ -1,0 +1,104 @@
+name: Deploy to Lucidchart
+
+on:
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - '**/*.drawio'
+  #     - '.github/workflows/deploy-lucidchart.yml'
+  #     - '.github/scripts/deploy-to-lucidchart.sh'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      changed_files:
+        description: 'Comma-separated list of changed files, or "all"'
+        required: false
+        type: string
+        default: 'all'
+    secrets:
+      LUCID_TOKEN:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2  # Fetch HEAD and HEAD~1 to detect changes
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Detect changed draw.io files
+        id: changes
+        run: |
+          # For manual workflow dispatch, deploy all files
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "changed_files=all" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Detect changed .drawio files
+          changed_files=$(git diff --name-only HEAD~1 HEAD | grep '\.drawio$' | tr '\n' ',' | sed 's/,$//')
+
+          if [ -n "$changed_files" ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+            echo "Changed draw.io files: $changed_files"
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+            echo "No draw.io files changed"
+          fi
+
+      - name: Deploy to Lucidchart
+        if: steps.changes.outputs.changes == 'true'
+        env:
+          LUCID_TOKEN: ${{ secrets.LUCID_TOKEN }}
+          CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
+        run: |
+          chmod +x .github/scripts/deploy-to-lucidchart.sh
+
+          if [ "$CHANGED_FILES" = "all" ]; then
+            .github/scripts/deploy-to-lucidchart.sh --force
+          else
+            .github/scripts/deploy-to-lucidchart.sh --deploy-changed
+          fi
+
+      - name: Commit deployment hashes
+        if: steps.changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          if [ -d ".github/.deployment-hashes/lucidchart" ]; then
+            git add .github/.deployment-hashes/lucidchart/
+            if git diff --staged --quiet; then
+              echo "No hash changes to commit"
+            else
+              git commit -m "Update Lucidchart deployment hashes [skip ci]"
+              git push
+            fi
+          fi
+
+      - name: Report deployment status
+        if: always() && steps.changes.outputs.changes == 'true'
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Successfully deployed draw.io diagrams to Lucidchart"
+          else
+            echo "❌ Failed to deploy draw.io diagrams to Lucidchart"
+            exit 1
+          fi
+
+      - name: Skip deployment
+        if: steps.changes.outputs.changes != 'true'
+        run: |
+          echo "⏭️ No draw.io files changed, skipping deployment"

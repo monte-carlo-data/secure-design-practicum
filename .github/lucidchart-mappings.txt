@@ -1,0 +1,14 @@
+# Lucidchart Mappings
+#
+# Maps local draw.io files to a Lucidchart team folder ID.
+# Format: path/to/diagram.drawio=lucidchart_folder_id
+#
+# Find your team folder ID in the Lucidchart URL:
+#   https://lucid.app/documents#/teams/<FOLDER_ID>?folder_id=teamFiles-<FOLDER_ID>
+#
+# Note: Each import creates a NEW Lucidchart document.
+# The Lucid API does not update existing documents in place.
+#
+# Example:
+# _static/sdd-review-flow.drawio=YOUR_FOLDER_ID
+# _static/pr-review-flow.drawio=YOUR_FOLDER_ID

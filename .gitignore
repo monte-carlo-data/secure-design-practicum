@@ -1,0 +1,17 @@
+.DS_Store
+*.pyc
+__pycache__/
+.venv/
+.env
+.env.*
+.pr-review-marker/
+.security-practicum/
+.notion-deploy-hash
+.claude/settings.local.json
+pr_review_output.json
+pr_review_questions.md
+pr_review_architecture.drawio
+sdd_review_output.json
+sdd_review_questions.md
+sdd_review_architecture.drawio
+secret-scan-*.json

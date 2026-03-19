@@ -1,0 +1,869 @@
+<mxfile host="app.diagrams.net" modified="2026-03-06T00:00:00.000Z" agent="Claude" version="21.0.0" type="device">
+  <diagram name="SDD Review Flow" id="sdd-review-flow">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============================================================ -->
+        <!-- SWIMLANE BACKGROUNDS                                          -->
+        <!-- ============================================================ -->
+
+        <!-- Trigger lane -->
+        <mxCell id="lane-trigger-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="60" width="200" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-trigger-label" value="Trigger" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#1e4d78;" vertex="1" parent="1">
+          <mxGeometry x="20" y="60" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Inputs lane -->
+        <mxCell id="lane-inputs-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="220" y="60" width="250" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-inputs-label" value="Inputs &amp; Context" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#2d6a28;" vertex="1" parent="1">
+          <mxGeometry x="220" y="60" width="250" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Review engine lane -->
+        <mxCell id="lane-review-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="470" y="60" width="280" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-review-label" value="Review Engine (Claude)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#7d6608;" vertex="1" parent="1">
+          <mxGeometry x="470" y="60" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Output lane -->
+        <mxCell id="lane-output-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="750" y="60" width="250" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-output-label" value="Outputs" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#4c2c7d;" vertex="1" parent="1">
+          <mxGeometry x="750" y="60" width="250" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Notify lane -->
+        <mxCell id="lane-notify-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="60" width="280" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-notify-label" value="Optional: Security Notification" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#7d1a1a;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="60" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Tracking lane -->
+        <mxCell id="lane-tracking-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=none;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="60" width="220" height="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-tracking-label" value="Tracking" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#4a1a8a;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="60" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- TRIGGER: manual                                               -->
+        <!-- ============================================================ -->
+        <mxCell id="trig-manual" value="workflow_dispatch&#xa;(Manual run)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- TRIGGER: PR -->
+        <mxCell id="trig-pr" value="pull_request&#xa;(.github/sdd-review-config.yml changed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- INPUTS                                                         -->
+        <!-- ============================================================ -->
+        <mxCell id="input-notion" value="Notion SDD URL&#xa;(required)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="240" y="120" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input-optional" value="Optional context:&#xa;• Source repos + file patterns&#xa;• Spec markdown&#xa;• Architecture diagram&#xa;• Security concerns&#xa;• Platform context&#xa;• Team questions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="240" y="180" width="200" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input-notify-flags" value="Notify flags (optional):&#xa;• notify_slack&#xa;• create_linear_ticket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="240" y="320" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- REVIEW ENGINE STEPS                                           -->
+        <!-- ============================================================ -->
+
+        <!-- Step 1: Read SDD -->
+        <mxCell id="step-read-sdd" value="1. Read SDD from Notion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="130" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Step 2: Gather context -->
+        <mxCell id="step-context" value="2. Gather optional context&#xa;(source code, spec, diagram,&#xa;security concerns, platform ctx,&#xa;team questions, risk register)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="490" y="200" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Step 3: Build prompt -->
+        <mxCell id="step-prompt" value="3. Build prompt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="310" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Step 4: Call Claude -->
+        <mxCell id="step-claude" value="4. Call Claude API&#xa;(claude-sonnet / opus)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="380" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Step 5: Parse JSON -->
+        <mxCell id="step-parse" value="5. Parse structured JSON response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="460" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: involvement -->
+        <mxCell id="decision-involvement" value="security_involvement&#xa;.recommendation?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="500" y="530" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- OUTPUTS                                                        -->
+        <!-- ============================================================ -->
+        <mxCell id="out-json" value="sdd_review_output.json&#xa;(full structured result)" style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="460" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out-md" value="sdd_review_questions.md&#xa;(full review markdown)" style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="525" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out-drawio" value="sdd_review_architecture.drawio&#xa;(interactive diagram)" style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="590" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out-summary" value="GitHub Actions&#xa;Job Summary" style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="655" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out-pr-comment" value="PR Comment&#xa;(if PR context)" style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="720" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Artifact upload -->
+        <mxCell id="out-artifacts" value="Upload artifacts&#xa;(90-day retention)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="770" y="790" width="190" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Involvement banner in output -->
+        <mxCell id="out-banner-req" value="REQUIRED banner&#xa;+ next steps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="770" y="530" width="0" height="0" as="geometry">
+            <Array as="constraints" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Review content sections label -->
+        <mxCell id="out-review-content" value="Review sections:&#xa;• Risk summary + involvement banner&#xa;• 1–10 security questions&#xa;• Data classification table&#xa;• Compliance considerations&#xa;• Incident response scenarios&#xa;• Team question responses&#xa;• ASCII architecture diagram" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="770" y="120" width="210" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- INVOLVEMENT DECISION BRANCHES                                  -->
+        <!-- ============================================================ -->
+
+        <!-- Required label -->
+        <mxCell id="label-required" value="Required" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=1;fontColor=#c0392b;" vertex="1" parent="1">
+          <mxGeometry x="710" y="545" width="70" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Recommended label -->
+        <mxCell id="label-recommended" value="Recommended" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=1;fontColor=#e67e22;" vertex="1" parent="1">
+          <mxGeometry x="600" y="625" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Not Required label -->
+        <mxCell id="label-not-req" value="Not Required" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=1;fontColor=#27ae60;" vertex="1" parent="1">
+          <mxGeometry x="430" y="625" width="90" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- NOTIFICATION LANE                                              -->
+        <!-- ============================================================ -->
+
+        <!-- Decision: notify enabled? -->
+        <mxCell id="decision-notify" value="notify_slack or&#xa;create_linear_ticket&#xa;enabled?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="520" width="190" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Slack notification -->
+        <mxCell id="notify-slack" value="Post Slack notification&#xa;to your security channel&#xa;&#xa;Color: red (Required)&#xa;or yellow (Recommended)&#xa;Fields: title, risk score,&#xa;rationale, criteria, run URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="660" width="210" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Required only for Linear -->
+        <mxCell id="decision-linear" value="Recommendation&#xa;= Required?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="820" width="190" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Linear ticket -->
+        <mxCell id="notify-linear" value="Create Linear triage ticket&#xa;(Security team, unassigned)&#xa;&#xa;Title: SDD Review: &lt;title&gt;&#xa;Status: Triage&#xa;Includes: rationale, risk score,&#xa;criteria, Notion + run links" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="930" width="210" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Skip notify -->
+        <mxCell id="skip-notify" value="Skip&#xa;(Not Required)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="540" width="110" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- TRACKING LANE                                                  -->
+        <!-- ============================================================ -->
+        <mxCell id="tracking-append" value="Append draft row&#xa;to TRACKING.md" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="200" width="170" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tracking-pr" value="Open PR to update&#xa;TRACKING.md&#xa;(workflow_dispatch only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="280" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tracking-fields" value="Row fields:&#xa;• SDD title + Notion link&#xa;• Status: In Progress&#xa;• Risk rating&#xa;• Actor&#xa;• Actions run link" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="360" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SECRET REQUIREMENTS NOTE                                       -->
+        <!-- ============================================================ -->
+        <mxCell id="secrets-note" value="Required secrets:&#xa;ANTHROPIC_API_KEY&#xa;NOTION_TOKEN&#xa;&#xa;Optional secrets:&#xa;SOURCE_REPO_TOKEN&#xa;SDD_SLACK_WEBHOOK_URL&#xa;LINEAR_API_KEY" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="240" y="420" width="200" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- EDGES                                                          -->
+        <!-- ============================================================ -->
+
+        <!-- Triggers → Step 1 -->
+        <mxCell id="e-manual-read" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="trig-manual" target="step-read-sdd" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-pr-read" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="trig-pr" target="step-read-sdd" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Inputs → Step 1 / Step 2 -->
+        <mxCell id="e-notion-read" style="edgeStyle=orthogonalEdgeStyle;rounded=0;dashed=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="input-notion" target="step-read-sdd" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-optional-context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;dashed=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="input-optional" target="step-context" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Review steps chain -->
+        <mxCell id="e-read-context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="step-read-sdd" target="step-context" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-context-prompt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="step-context" target="step-prompt" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-prompt-claude" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="step-prompt" target="step-claude" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-claude-parse" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="step-claude" target="step-parse" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-parse-decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="step-parse" target="decision-involvement" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Parse → outputs -->
+        <mxCell id="e-parse-json" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;dashed=1;exitX=1;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="step-parse" target="out-json" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-parse-md" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="step-parse" target="out-md" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-parse-drawio" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;dashed=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="step-parse" target="out-drawio" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- MD → summary + pr comment + artifacts -->
+        <mxCell id="e-md-summary" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="out-md" target="out-summary" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-md-pr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="out-summary" target="out-pr-comment" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-outputs-artifacts" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="out-pr-comment" target="out-artifacts" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Involvement decision → notify -->
+        <mxCell id="e-required-notify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#c0392b;fontColor=#c0392b;" edge="1" source="decision-involvement" target="decision-notify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Involvement Not Required → skip -->
+        <mxCell id="e-not-req-skip" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#27ae60;fontColor=#27ae60;" edge="1" source="decision-involvement" target="skip-notify" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="600" y="650" />
+              <mxPoint x="1305" y="650" />
+              <mxPoint x="1305" y="565" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Notify flags → decision-notify -->
+        <mxCell id="e-flags-notify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;dashed=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" source="input-notify-flags" target="decision-notify" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="350" />
+              <mxPoint x="470" y="480" />
+              <mxPoint x="1020" y="480" />
+              <mxPoint x="1020" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Notify enabled → Slack -->
+        <mxCell id="e-notify-slack" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#b85450;" edge="1" source="decision-notify" target="notify-slack" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Notify not enabled → skip -->
+        <mxCell id="e-notify-skip" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#82b366;" edge="1" source="decision-notify" target="skip-notify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Slack → decision linear -->
+        <mxCell id="e-slack-linear-dec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#b85450;" edge="1" source="notify-slack" target="decision-linear" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Decision linear yes → Linear ticket -->
+        <mxCell id="e-linear-yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#b85450;" edge="1" source="decision-linear" target="notify-linear" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Decision linear no → tracking -->
+        <mxCell id="e-linear-no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#82b366;" edge="1" source="decision-linear" target="tracking-append" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="855" />
+              <mxPoint x="1270" y="225" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Linear ticket → tracking -->
+        <mxCell id="e-linear-tracking" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#b85450;" edge="1" source="notify-linear" target="tracking-append" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1280" y="995" />
+              <mxPoint x="1280" y="225" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Skip → tracking -->
+        <mxCell id="e-skip-tracking" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="skip-notify" target="tracking-append" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Tracking append → PR -->
+        <mxCell id="e-tracking-pr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tracking-append" target="tracking-pr" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-tracking-pr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tracking-pr" target="tracking-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- LEGEND                                                         -->
+        <!-- ============================================================ -->
+        <mxCell id="legend-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;opacity=50;" vertex="1" parent="1">
+          <mxGeometry x="40" y="940" width="160" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="948" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-required" value="Required path" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#c0392b;" vertex="1" parent="1">
+          <mxGeometry x="50" y="970" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-recommended" value="Recommended/optional path" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#e67e22;" vertex="1" parent="1">
+          <mxGeometry x="50" y="990" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-skipped" value="Not Required / skipped" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#27ae60;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1010" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-optional-input" value="Optional input (dashed)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1030" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-linear" value="Linear API (Required only)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1050" width="140" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- YES / NO LABELS ON DECISION NODES                             -->
+        <!-- ============================================================ -->
+        <mxCell id="label-notify-yes" value="Yes" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="615" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="label-notify-no" value="No" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1215" y="555" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="label-linear-yes" value="Yes" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="898" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="label-linear-no" value="No (Recommended)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1230" y="840" width="120" height="30" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="/sdd-review Skill Flow" id="sdd-review-skill-flow">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============================================================ -->
+        <!-- PAGE TITLE                                                     -->
+        <!-- ============================================================ -->
+        <mxCell id="page-title" value="/sdd-review — Claude Code Skill" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="page-subtitle" value="Security team workflow: triage → fetch → analyze → record → notify" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="20" y="48" width="500" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SWIMLANE BACKGROUNDS                                          -->
+        <!-- ============================================================ -->
+
+        <!-- Invoke lane -->
+        <mxCell id="lane-invoke-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="80" width="180" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-invoke-label" value="Invoke" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#1e4d78;" vertex="1" parent="1">
+          <mxGeometry x="20" y="80" width="180" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Context lane -->
+        <mxCell id="lane-ctx-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="200" y="80" width="220" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-ctx-label" value="Step 1 — Load Context" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#2d6a28;" vertex="1" parent="1">
+          <mxGeometry x="200" y="80" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Triage lane -->
+        <mxCell id="lane-triage-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="420" y="80" width="220" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-triage-label" value="Step 2 — Triage Queue" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#7d6608;" vertex="1" parent="1">
+          <mxGeometry x="420" y="80" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Analyze lane -->
+        <mxCell id="lane-analyze-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="640" y="80" width="280" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-analyze-label" value="Steps 3–4 — Fetch &amp; Analyze" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#8a4a00;" vertex="1" parent="1">
+          <mxGeometry x="640" y="80" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Record lane -->
+        <mxCell id="lane-record-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="920" y="80" width="240" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-record-label" value="Step 5 — Save &amp; Record" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#4c2c7d;" vertex="1" parent="1">
+          <mxGeometry x="920" y="80" width="240" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Notify lane -->
+        <mxCell id="lane-notify2-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="80" width="240" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-notify2-label" value="Step 6 — Optional Notify" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#7d1a1a;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="80" width="240" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Loop lane -->
+        <mxCell id="lane-loop-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=none;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="80" width="200" height="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-loop-label" value="Step 7 — Loop" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#4a1a8a;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="80" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- INVOKE                                                         -->
+        <!-- ============================================================ -->
+        <mxCell id="invoke-skill" value="/sdd-review&#xa;in Claude Code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="140" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Contrast note vs pipeline -->
+        <mxCell id="invoke-contrast" value="vs. GitHub Action:&#xa;runs in your local&#xa;Claude Code session,&#xa;not CI/CD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#aaaaaa;fontSize=10;fontStyle=2;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="30" y="220" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 1 — LOAD CONTEXT                                         -->
+        <!-- ============================================================ -->
+        <mxCell id="ctx-tracking" value="Read TRACKING.md&#xa;(parse all SDD rows,&#xa;status, reviewer, etc.)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="140" width="190" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ctx-platform" value="Read platform_context.md&#xa;(tenant scoping, identity gateway,&#xa;queueing, IAM patterns,&#xa;existing controls)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="220" width="190" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ctx-guides" value="Read review guides:&#xa;• Quick Security Review&#xa;• Architecture Walkthrough Qs&#xa;• Self-Service Checklist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="215" y="310" width="190" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ctx-note" value="All context held in memory&#xa;for the full session" style="shape=note;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="215" y="410" width="190" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 2 — TRIAGE QUEUE                                         -->
+        <!-- ============================================================ -->
+        <mxCell id="triage-queue" value="Show pending queue:&#xa;&#xa;[1] In Progress (resume first)&#xa;[2] Security-Relevant (Yes)&#xa;[3] Other Pending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="435" y="140" width="190" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="triage-pick" value="User selects SDD&#xa;(by number, name,&#xa;or pastes Notion URL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="435" y="270" width="190" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="triage-notfound" value="SDD not in tracking?&#xa;→ offer to add as Pending&#xa;before continuing" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="435" y="360" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 3 — FETCH SDD                                            -->
+        <!-- ============================================================ -->
+        <mxCell id="fetch-notion" value="Fetch SDD from Notion&#xa;(Notion MCP)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="655" y="140" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fetch-fail" value="Fetch fails?&#xa;→ paste content or skip" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="675" y="215" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 4 — ANALYZE                                              -->
+        <!-- ============================================================ -->
+        <mxCell id="analyze-score" value="Part A — Involvement scoring&#xa;Likelihood × Impact (1–25)&#xa;→ Required / Recommended /&#xa;   Not Required" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="655" y="305" width="240" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="analyze-lens1" value="Part B — Lens 1&#xa;Quick Security Review&#xa;Answer all 10 &quot;Security Steve&quot;&#xa;questions from SDD content" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="655" y="405" width="240" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="analyze-lens2" value="Part B — Lens 2&#xa;Architecture Walkthrough&#xa;10 domains: auth, authz,&#xa;data flow, secrets, integrations,&#xa;logging, IR, compliance, …" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="655" y="505" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="analyze-lens3" value="Part B — Lens 3&#xa;Self-Service Checklist&#xa;7 categories, flag priority areas&#xa;with multiple gaps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="655" y="615" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="analyze-platform-note" value="Platform context applied throughout:&#xa;tenant scoping, gateway auth,&#xa;queue isolation, secrets mgmt" style="shape=note;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="655" y="703" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="analyze-output" value="Part C — Synthesize:&#xa;• 3–8 security questions (gap-grounded)&#xa;• Data classification table&#xa;• Gaps summary&#xa;→ User confirms / adjusts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="655" y="773" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 5 — SAVE & RECORD                                        -->
+        <!-- ============================================================ -->
+        <mxCell id="record-reviewmd" value="Part A — Write review.md?&#xa;(optional, user confirms)&#xa;&#xa;reviews/&lt;slug&gt;/review.md&#xa;Contains: involvement, questions,&#xa;data classification, gaps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="935" y="140" width="200" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="record-tracking" value="Part B — Update TRACKING.md&#xa;(show diff, user confirms)&#xa;&#xa;Set: Status → Reviewed&#xa;Fill: Risk Rating, Sec Relevant,&#xa;Reviewer, Date, Ticket, File" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="935" y="290" width="200" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="record-contrast" value="vs. pipeline PR:&#xa;pipeline writes In Progress row.&#xa;Skill writes Reviewed row&#xa;after Security signs off." style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=2;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="935" y="440" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 6 — NOTIFY                                               -->
+        <!-- ============================================================ -->
+        <mxCell id="decision-involvement2" value="Involvement level?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="140" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notify2-ask" value="Ask: Slack? Linear? Both? Skip?&#xa;&#xa;[S] Security channel&#xa;[L] Linear triage (Required only)&#xa;[B] Both&#xa;[N] Skip" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="245" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notify2-slack" value="Post to security channel&#xa;(Slack MCP)&#xa;Red = Required&#xa;Yellow = Recommended" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="375" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notify2-linear" value="Create Linear triage ticket&#xa;(Linear MCP, Required only)&#xa;Security team, unassigned&#xa;→ update TRACKING.md&#xa;   with ticket URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="485" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notify2-skip" value="Skip (Not Required)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1385" y="165" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- STEP 7 — LOOP                                                 -->
+        <!-- ============================================================ -->
+        <mxCell id="loop-ask" value="Continue to next&#xa;pending SDD?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1415" y="270" width="160" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="loop-summary" value="Session summary:&#xa;• Reviewed (with level)&#xa;• Skipped&#xa;• Notifications sent" style="shape=note;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1415" y="400" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- COMPARISON BOX                                                 -->
+        <!-- ============================================================ -->
+        <mxCell id="compare-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#aaaaaa;opacity=60;" vertex="1" parent="1">
+          <mxGeometry x="20" y="700" width="590" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="compare-title" value="How this differs from the GitHub Action (pipeline)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="708" width="570" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="compare-header-dim" value="Dimension" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="738" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="compare-header-pipeline" value="GitHub Action (pipeline)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=10;fontColor=#c0392b;" vertex="1" parent="1">
+          <mxGeometry x="170" y="738" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="compare-header-skill" value="/sdd-review Skill" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=10;fontColor=#1e4d78;" vertex="1" parent="1">
+          <mxGeometry x="380" y="738" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-who" value="Who runs it" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="762" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-who-p" value="Engineering teams" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="762" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-who-s" value="Security team (you)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="762" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-purpose" value="Purpose" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="786" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-purpose-p" value="Self-service SDD review" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="786" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-purpose-s" value="Security team triage &amp; sign-off" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="786" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-trigger" value="Triggered by" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="810" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-trigger-p" value="PR or workflow_dispatch" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="810" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-trigger-s" value="/sdd-review in Claude Code" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="810" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-analysis" value="Analysis depth" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="834" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-analysis-p" value="AI review of SDD + source code" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="834" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-analysis-s" value="3 guide lenses + platform context" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="834" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-writes" value="Writes to" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="858" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-writes-p" value="PR comment, artifacts, TRACKING.md&#xa;(In Progress row via PR)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="858" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-writes-s" value="review.md in repo, TRACKING.md&#xa;(Reviewed row, direct commit)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="858" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-status" value="TRACKING.md status set" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="896" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-status-p" value="In Progress" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;fontColor=#e67e22;" vertex="1" parent="1">
+          <mxGeometry x="170" y="896" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-status-s" value="Reviewed" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;fontColor=#27ae60;" vertex="1" parent="1">
+          <mxGeometry x="380" y="896" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-notify" value="Notifications" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="920" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-notify-p" value="Via GitHub secrets + sdd_notify.py" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="920" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-notify-s" value="Via Slack + Linear MCP (interactive)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="920" width="200" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-flow" value="How they connect: Pipeline runs first (engineering self-service) → sets TRACKING.md to In Progress → /sdd-review skill picks it up → Security does deeper review → sets status to Reviewed" style="text;html=1;strokeColor=none;fillColor=#fff9e6;strokeColor=#d6b656;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="950" width="570" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- EDGES                                                          -->
+        <!-- ============================================================ -->
+
+        <!-- Invoke → ctx -->
+        <mxCell id="e2-invoke-ctx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="invoke-skill" target="ctx-tracking" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ctx chain -->
+        <mxCell id="e2-ctx1-ctx2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="ctx-tracking" target="ctx-platform" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-ctx2-ctx3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="ctx-platform" target="ctx-guides" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-ctx3-note" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="ctx-guides" target="ctx-note" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ctx → triage -->
+        <mxCell id="e2-ctx-triage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="ctx-note" target="triage-queue" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="430" />
+              <mxPoint x="415" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- triage chain -->
+        <mxCell id="e2-queue-pick" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="triage-queue" target="triage-pick" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- triage → fetch -->
+        <mxCell id="e2-pick-fetch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="triage-pick" target="fetch-notion" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="635" y="300" />
+              <mxPoint x="635" y="165" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- fetch → fail decision -->
+        <mxCell id="e2-fetch-fail" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="fetch-notion" target="fetch-fail" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- fetch ok → analyze score -->
+        <mxCell id="e2-fail-score" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#27ae60;" edge="1" source="fetch-fail" target="analyze-score" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- analyze chain -->
+        <mxCell id="e2-score-lens1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="analyze-score" target="analyze-lens1" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-lens1-lens2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="analyze-lens1" target="analyze-lens2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-lens2-lens3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="analyze-lens2" target="analyze-lens3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-lens3-note" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="analyze-lens3" target="analyze-platform-note" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-note-output" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="analyze-platform-note" target="analyze-output" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- analyze output → record -->
+        <mxCell id="e2-output-record" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="analyze-output" target="record-reviewmd" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="910" y="818" />
+              <mxPoint x="910" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- record chain -->
+        <mxCell id="e2-reviewmd-tracking" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="record-reviewmd" target="record-tracking" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-tracking-contrast" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;dashed=1;" edge="1" source="record-tracking" target="record-contrast" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- record → notify decision -->
+        <mxCell id="e2-record-notify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="record-tracking" target="decision-involvement2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1150" y="350" />
+              <mxPoint x="1150" y="175" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- notify decision → ask (Required/Recommended) -->
+        <mxCell id="e2-inv-ask" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#b85450;" edge="1" source="decision-involvement2" target="notify2-ask" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- notify decision → skip (Not Required) -->
+        <mxCell id="e2-inv-skip" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#27ae60;" edge="1" source="decision-involvement2" target="notify2-skip" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ask → slack + linear -->
+        <mxCell id="e2-ask-slack" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#b85450;" edge="1" source="notify2-ask" target="notify2-slack" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-slack-linear" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#b85450;" edge="1" source="notify2-slack" target="notify2-linear" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- notify → loop -->
+        <mxCell id="e2-linear-loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="notify2-linear" target="loop-ask" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1400" y="535" />
+              <mxPoint x="1400" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2-skip-loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="notify2-skip" target="loop-ask" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- loop yes → back to triage -->
+        <mxCell id="e2-loop-yes" value="Y" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0;exitY=0.5;entryX=0.5;entryY=0;strokeColor=#1e4d78;fontColor=#1e4d78;fontStyle=1;" edge="1" source="loop-ask" target="triage-queue" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1415" y="310" />
+              <mxPoint x="530" y="310" />
+              <mxPoint x="530" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- loop no → summary -->
+        <mxCell id="e2-loop-no" value="N" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontStyle=1;" edge="1" source="loop-ask" target="loop-summary" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
