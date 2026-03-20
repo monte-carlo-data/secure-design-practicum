@@ -649,13 +649,27 @@ update_notion_page() {
                 batch_bytes=0
             fi
 
-            # The table block was the last one uploaded; get its ID from the API
+            # The table block was the last one uploaded; paginate to find its ID
             local table_block_id
-            table_block_id=$(curl -s \
-                -H "Authorization: Bearer $NOTION_TOKEN" \
-                -H "Notion-Version: 2022-06-28" \
-                "$NOTION_API_URL/blocks/$notion_page_id/children?page_size=100" \
-                | jq -r '.results[-1].id // empty' 2>/dev/null)
+            table_block_id=$(
+                cursor=""
+                last_id=""
+                while true; do
+                    url="$NOTION_API_URL/blocks/$notion_page_id/children?page_size=100"
+                    [ -n "$cursor" ] && url="${url}&start_cursor=${cursor}"
+                    response=$(curl -s \
+                        -H "Authorization: Bearer $NOTION_TOKEN" \
+                        -H "Notion-Version: 2022-06-28" \
+                        "$url")
+                    page_last=$(echo "$response" | jq -r '.results[-1].id // empty' 2>/dev/null)
+                    [ -n "$page_last" ] && last_id="$page_last"
+                    has_more=$(echo "$response" | jq -r '.has_more // false' 2>/dev/null)
+                    [ "$has_more" != "true" ] && break
+                    cursor=$(echo "$response" | jq -r '.next_cursor // empty' 2>/dev/null)
+                    [ -z "$cursor" ] && break
+                done
+                echo "$last_id"
+            )
 
             if [ -z "$table_block_id" ]; then
                 error "Could not retrieve table block ID to append rows"

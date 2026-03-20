@@ -8,7 +8,7 @@
 | -------------- | ------- | ----- |
 | Quick security gut-check for my feature | Answer the [10 Security Questions](guides/quick-security-review.md) | guides/ |
 | I want Claude to walk me through it | Use the [Quick Review Prompt](prompts/quick-review-prompt.md) | prompts/ |
-| I want Claude Code to run the review interactively | Use the [Claude Code Skill](#claude-code-sdd-review-skill) (`/sdd-review` in Claude Code) | Claude Code CLI |
+| I want Claude Code to run the review interactively | Use the [Claude Code Skills](#claude-code-skills) (`/sdd-review`, `/pr-review`, `/security-steve`) | Claude Code CLI |
 | Preparing for a formal security review | Complete the [Self-Service Checklist](guides/self-service-checklist.md) | guides/ |
 | I have an SDD in Notion and want automated review | Use the [SDD Review Action](#sdd-review-github-action) (manual or PR-triggered) | [automation/sdd-review.md](automation/sdd-review.md) |
 | I want a security review of a pull request diff | Use the [PR Review Action](#pr-review-github-action) (manual or PR-triggered) | [automation/pr-review.md](automation/pr-review.md) |
@@ -130,17 +130,29 @@ Same structured output as the SDD Review: involvement recommendation, security q
 
 ---
 
-## Claude Code SDD Review Skill
+## Claude Code Skills
 
-The SDD review is also available as a Claude Code skill (`/sdd-review`). This is the fastest way to run a review interactively — no pipeline setup or GitHub Actions required.
+Three interactive skills are available for Claude Code. Type the command in your Claude Code session and follow the prompts — no pipeline setup or GitHub Actions required.
 
-In Claude Code, type `/sdd-review` and follow the prompts. The skill will:
+| Skill | Command | What it does |
+| ----- | ------- | ------------ |
+| **SDD Review** | `/sdd-review` | Reviews a Notion SDD interactively — asks for the SDD URL and optional context, then generates the full structured review |
+| **PR Review** | `/pr-review` | Reviews a GitHub PR diff interactively — accepts a PR URL and optional Notion SDD context |
+| **Security Steve** | `/security-steve` | Triage and dispatch agent — accepts any security question or input (SDD URL, PR URL, freeform description) and routes it to the right review workflow |
 
-1. Ask for the Notion SDD URL and any optional context (source repos, security concerns, team questions)
-2. Fetch the SDD from Notion and gather relevant context
-3. Generate the same structured output as the pipeline: risk recommendation, security questions, data classification, compliance notes, and incident scenarios
+All three skills use the same underlying prompts and logic as the GitHub Actions. Output appears inline in your Claude Code session rather than as a PR comment. Use the GitHub Actions when you want automated PR-triggered reviews or persistent CI output.
 
-The skill uses the same underlying prompt and logic as the GitHub Action. Output is shown inline in your Claude Code session rather than posted as a PR comment. Use the GitHub Action when you want automated PR-triggered reviews or persistent CI output.
+### `/sdd-review`
+
+Ask for the Notion SDD URL and any optional context (source repos, security concerns, team questions), then generate the full structured output: risk recommendation, security questions, data classification, compliance notes, and incident scenarios.
+
+### `/pr-review`
+
+Ask for a GitHub PR URL and an optional Notion SDD URL for design context, then generate the same structured output as the SDD review focused on the code changes.
+
+### `/security-steve`
+
+Accepts any input — a Notion SDD URL, a GitHub PR URL, or a freeform description of what you're building — and classifies it, scores the risk, and routes to `/sdd-review`, `/pr-review`, or a quick inline check. Use this when you're not sure which review type you need.
 
 ---
 

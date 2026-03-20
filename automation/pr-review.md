@@ -12,6 +12,8 @@ A GitHub Action that reviews pull request diffs and generates a structured secur
 6. **Architecture Diagram (draw.io)** — Interactive, color-coded diagram with trust boundaries, data flows, and security controls. Saved as `pr_review_architecture.drawio` in build artifacts — open it at [app.diagrams.net](https://app.diagrams.net/)
 7. **Architecture Diagram (ASCII)** — Text-based version embedded in the PR comment and markdown output for quick reference
 
+A process flow diagram for this workflow is available at [`_static/pr-review-flow.drawio`](../_static/pr-review-flow.drawio). Open it at [app.diagrams.net](https://app.diagrams.net/) for an interactive view.
+
 ## How It Differs from the SDD Review
 
 | Aspect | SDD Review | PR Review |

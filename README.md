@@ -23,8 +23,10 @@ Resources and automation for conducting security architecture reviews of System 
 | **Use Claude to help document my architecture** | [Quick Review Prompt](prompts/quick-review-prompt.md) |
 | **Prepare for a walkthrough with Security** | [Self-Service Checklist](guides/self-service-checklist.md) |
 | **Get automated security questions for my SDD** | [SDD Review Action](#sdd-review-github-action) |
-| **Get a security review of a pull request diff** | [PR Review Action](security-review-guide.md#pr-review-github-action) |
-| **Run the review interactively in Claude Code** | `/sdd-review` skill in Claude Code |
+| **Get a security review of a pull request diff** | [PR Review Action](automation/pr-review.md) |
+| **Run SDD review interactively in Claude Code** | `/sdd-review` skill in Claude Code |
+| **Run PR review interactively in Claude Code** | `/pr-review` skill in Claude Code |
+| **Triage any security question with AI** | `/security-steve` skill in Claude Code |
 | **See all resources and workflows** | [Security Review Guide](security-review-guide.md) |
 | **See an example of a completed review** | [Example Review](reviews/example_custom_integration/review.md) |
 
@@ -87,8 +89,16 @@ your-repo/
 
 | File | Purpose |
 |------|---------|
-| [workflows/sdd-review.yml](.github/workflows/sdd-review.yml) | GitHub Actions workflow (manual + PR-triggered) |
-| [scripts/sdd_reviewer.py](.github/scripts/sdd_reviewer.py) | Review script: Notion → Claude → markdown output |
+| [workflows/sdd-review.yml](.github/workflows/sdd-review.yml) | SDD review workflow (manual + PR-triggered) |
+| [workflows/sdd-review-reusable.yml](.github/workflows/sdd-review-reusable.yml) | Reusable SDD review workflow — call from your own pipeline |
+| [workflows/pr-review.yml](.github/workflows/pr-review.yml) | PR review workflow (manual + PR-triggered) |
+| [workflows/pr-review-reusable.yml](.github/workflows/pr-review-reusable.yml) | Reusable PR review workflow — call from your own pipeline |
+| [workflows/deploy-notion.yml](.github/workflows/deploy-notion.yml) | Deploy guides and templates to Notion |
+| [workflows/deploy-lucidchart.yml](.github/workflows/deploy-lucidchart.yml) | Deploy diagrams to Lucidchart |
+| [scripts/sdd_reviewer.py](.github/scripts/sdd_reviewer.py) | SDD review script: Notion → Claude → markdown output |
+| [scripts/pr_reviewer.py](.github/scripts/pr_reviewer.py) | PR review script: GitHub diff → Claude → markdown output |
+| [scripts/sdd_notify.py](.github/scripts/sdd_notify.py) | Slack and Linear notification script for Required/Recommended reviews |
+| [scripts/update_sdd_tracking.py](.github/scripts/update_sdd_tracking.py) | Updates TRACKING.md after a completed SDD review |
 
 ### `/guides/` — How-to Documentation
 
@@ -121,6 +131,7 @@ your-repo/
 | File | Purpose |
 |------|---------|
 | [sdd-review-flow.drawio](_static/sdd-review-flow.drawio) | Process flow diagram for the SDD review workflow |
+| [pr-review-flow.drawio](_static/pr-review-flow.drawio) | Process flow diagram for the PR review workflow |
 
 ### Root Files
 
@@ -134,6 +145,8 @@ your-repo/
 | File | Purpose |
 |------|---------|
 | [sdd-review.md](.claude/commands/sdd-review.md) | Interactive Claude Code skill for the SDD review workflow |
+| [pr-review.md](.claude/commands/pr-review.md) | Interactive Claude Code skill for the PR security review workflow |
+| [security-steve.md](.claude/commands/security-steve.md) | Security Concierge triage and dispatch skill — routes any security question to the right workflow |
 
 ---
 

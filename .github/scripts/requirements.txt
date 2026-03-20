@@ -1,2 +1,4 @@
 anthropic
 requests
+notion-client
+PyYAML
