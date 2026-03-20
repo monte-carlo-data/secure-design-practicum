@@ -1,9 +1,9 @@
 name: Reusable PR Security Review
 
 on:
-  push:
-    paths:
-      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  # push:
+  #   paths:
+  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       pr-review-url:
