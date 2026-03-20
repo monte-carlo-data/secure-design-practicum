@@ -1,0 +1,201 @@
+---
+name: pr-review
+description: >
+  Interactive PR security review workflow. Use this skill whenever the user
+  asks to review a PR, run a security review on a pull request, or check whether
+  a PR needs security involvement — even if phrased casually (e.g. "review this PR",
+  "can you security review this pull request", "run pr-review on this").
+---
+
+# PR Security Review Workflow
+
+This skill guides the user through running a security review against a GitHub pull request
+using the `pr-review.yml` GitHub Action. It helps gather the required inputs, explains the
+outputs, and walks through the review results.
+
+The full process documentation is in:
+`automation/pr-review.md`
+
+---
+
+## Step 1 — Identify the PR to review
+
+Check whether the user provided a GitHub PR URL in their invocation
+(e.g. `/pr-review https://github.com/org/repo/pull/123`).
+
+**If a PR URL was provided:** confirm it and proceed to Step 2.
+
+**If no URL was provided:** ask the user:
+
+> "Please paste the GitHub PR URL you'd like to security review
+> (e.g. `https://github.com/org/repo/pull/42`)."
+
+---
+
+## Step 2 — Gather optional inputs
+
+Ask the user:
+
+> "Do you have a Notion SDD for this PR? Paste the URL to add design context,
+> or press Enter to skip."
+
+Then ask:
+
+> "Is this a test or re-run where you want to suppress Slack/Linear notifications?
+> (Y to skip notifications, Enter to send them)"
+
+Summarize what will be run:
+
+```text
+Ready to run PR security review:
+- PR: <pr_url>
+- SDD context: <notion_sdd_url or "none">
+- Notifications: <enabled or suppressed>
+```
+
+---
+
+## Step 3 — Choose how to trigger the review
+
+Ask the user how they want to run it:
+
+> "How would you like to trigger the review?
+> - [M] Manual — run `workflow_dispatch` in GitHub Actions now
+> - [C] Config file — add `.github/pr-review-config.yml` to the PR branch
+> - [R] Reusable workflow — show the `workflow_call` snippet to add to your pipeline"
+
+### Option M — Manual (workflow_dispatch)
+
+Direct the user to:
+
+1. Go to **Actions > PR Security Review > Run workflow** in their repo
+2. Fill in:
+   - **GitHub PR URL**: `<pr_url>`
+   - **Notion SDD URL**: `<notion_sdd_url>` (leave blank if none)
+   - **Skip notifications**: checked if suppressing
+3. Click **Run workflow**
+
+Tell the user: "The review will appear in the Actions run summary and as a PR comment
+(if the workflow has access to post on that PR)."
+
+### Option C — Config file
+
+Show the config to add to `.github/pr-review-config.yml` in their branch:
+
+```yaml
+pr_review_url: "<pr_url>"
+
+# Optional — adds design context from Notion (requires NOTION_TOKEN secret)
+# notion_sdd_url: "https://www.notion.so/..."
+
+# Optional — suppress Slack/Linear notifications for this run
+skip_notifications: false
+```
+
+Explain: "Commit this file to your branch and push. The review runs automatically
+when the PR is opened or updated, and posts results as a PR comment."
+
+### Option R — Reusable workflow
+
+Show the caller snippet:
+
+```yaml
+jobs:
+  pr-review:
+    uses: monte-carlo-data/secure-design-practicum/.github/workflows/pr-review-reusable.yml@main
+    with:
+      pr-review-url: "<pr_url>"
+      # notion-sdd-url: "https://www.notion.so/..."   # optional
+      skip-notifications: false
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}          # only if using SDD context
+      SDD_SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+```
+
+Explain: "Add this to your repo's workflow. It references the canonical script from
+`secure-design-practicum` directly — no need to copy files."
+
+---
+
+## Step 4 — Secrets setup check
+
+Ask the user:
+
+> "Does the repo running this workflow have the required secrets configured?
+> - `ANTHROPIC_API_KEY` — required
+> - `NOTION_TOKEN` — required only if providing a Notion SDD URL
+> - `SDD_SLACK_WEBHOOK_URL` — optional (enables Slack notifications)
+> - `LINEAR_API_KEY` — optional (creates Linear triage ticket for Required reviews)"
+
+If any are missing, point them to:
+**Settings > Secrets and variables > Actions** in the target repository.
+
+---
+
+## Step 5 — Interpret the results
+
+Once the workflow has run, help the user understand the output.
+
+Ask: "Do you have the review output to discuss? Paste the summary or share the Actions run link."
+
+When the user shares results, walk through:
+
+### Involvement recommendation
+
+Explain what the recommendation means and what action is expected:
+
+| Recommendation | Meaning | Next step |
+|---|---|---|
+| **Required** | Security team must be consulted before this PR merges | Post in your security channel before merging |
+| **Recommended** | Security team should review but is not blocking | Consider posting in your security channel for async review |
+| **Not Required** | No Security team involvement needed | Proceed — the security questions are still worth addressing in review |
+
+### Security questions
+
+For each question, help the user understand:
+- What the specific risk is in their code
+- Which file/function it applies to (`affected_file` / `affected_line`)
+- What the exploit scenario means in practice — who can trigger it, what they gain
+- What a good answer or mitigation looks like
+- The confidence score — if it shows 70–79%, flag that the finding requires specific conditions to be exploitable and may need the engineer's judgment to dismiss
+
+Note that questions below 70% confidence are suppressed from the PR comment entirely. If the user asks why a question from the JSON isn't in the comment, this is why. The full list is always in `pr_review_output.json`.
+
+### Notifications
+
+If notifications fired (Slack message or Linear ticket), confirm the user knows:
+- The Slack message went to the configured security channel
+- A Linear ticket was created in the Security team's Triage queue (Required only)
+- They should respond to or monitor those channels for follow-up
+
+---
+
+## Step 6 — Troubleshooting
+
+If the workflow failed, help diagnose common issues:
+
+**"Could not parse GitHub PR URL"**
+→ Ensure the URL is `https://github.com/org/repo/pull/N`
+
+**"GitHub API error fetching PR" / 404**
+→ The workflow uses `github.token` by default. For PRs in a private repo outside the caller's org,
+pass a `SOURCE_REPO_TOKEN` PAT with `repo` scope as a secret to the reusable workflow.
+
+**"NOTION_TOKEN is required when NOTION_SDD_URL is set"**
+→ Either remove `notion_sdd_url` from the config or add the `NOTION_TOKEN` secret.
+
+**Review output is too generic**
+→ Add a Notion SDD URL for design context, and make sure the PR has a descriptive
+title and body — the reviewer uses both as input.
+
+---
+
+## Notes
+
+- The `pr-review.yml` workflow does not update `TRACKING.md` — PR reviews are not
+  part of the SDD design review log.
+- If the PR is already merged or closed, the review can still be run retroactively —
+  the diff remains accessible via the GitHub API.
+- For setup details, refer to `automation/pr-review.md`.
