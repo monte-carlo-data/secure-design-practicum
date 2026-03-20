@@ -20,6 +20,9 @@ Env vars:
   REPO_FULL_NAME       — set by GitHub Actions for PR comment posting
   PR_NUMBER            — set by GitHub Actions for PR comment posting
   RISK_REGISTER_REPO   — optional; override default your-org/risk-register
+  CONTEXT_REPOS        — optional; comma-separated list of org/repo slugs to fetch for
+                         additional context (e.g. "your-org/shared-lib,your-org/sdk")
+                         Max 3 repos. Fetches code and markdown files up to 6KB per repo.
 """
 
 import os
@@ -63,6 +66,19 @@ MAX_DIFF_CONTEXT = 30_000
 
 # Per-file diff cap (chars)
 MAX_FILE_DIFF = 6_000
+
+# Context repo limits
+MAX_CONTEXT_REPOS = 3
+MAX_CONTEXT_PER_REPO = 6_000   # chars per repo
+MAX_CONTEXT_TOTAL = 15_000     # chars across all context repos
+
+# File extensions to fetch from context repos (code + docs)
+CONTEXT_REPO_EXTENSIONS = {
+    ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java",
+    ".rb", ".tf", ".hcl", ".yml", ".yaml", ".json", ".toml",
+    ".sql", ".graphql", ".gql", ".proto", ".sh", ".md", ".mdx",
+    "dockerfile",
+}
 
 
 def parse_pr_url(url: str):
@@ -222,6 +238,145 @@ def build_diff_context(files: List[Dict[str, Any]]):
         )
 
     return "\n".join(diff_parts), all_filenames
+
+
+def fetch_context_repo_files(repo_slug: str, token: str, budget: int) -> str:
+    """
+    Fetch code and markdown files from a GitHub repo for additional context.
+
+    Walks the default branch tree, scores files by security relevance (same
+    heuristic as the PR diff), and includes content up to `budget` chars.
+    Returns a formatted string ready for prompt injection.
+    """
+    headers = github_headers(token)
+
+    # Resolve default branch
+    try:
+        meta_resp = requests.get(
+            f"https://api.github.com/repos/{repo_slug}",
+            headers=headers,
+            timeout=30,
+        )
+        if meta_resp.status_code == 404:
+            print(f"Context repo not found: {repo_slug} — skipping")
+            return ""
+        if meta_resp.status_code == 403:
+            print(f"No access to context repo: {repo_slug} — skipping")
+            return ""
+        meta_resp.raise_for_status()
+        default_branch = meta_resp.json().get("default_branch", "main")
+    except Exception as e:
+        print(f"Warning: Could not fetch metadata for {repo_slug}: {e}")
+        return ""
+
+    # Fetch the full recursive tree
+    try:
+        tree_resp = requests.get(
+            f"https://api.github.com/repos/{repo_slug}/git/trees/{default_branch}",
+            headers=headers,
+            params={"recursive": "1"},
+            timeout=30,
+        )
+        if tree_resp.status_code != 200:
+            print(f"Warning: Could not fetch tree for {repo_slug}: HTTP {tree_resp.status_code}")
+            return ""
+        tree = tree_resp.json().get("tree", [])
+    except Exception as e:
+        print(f"Warning: Could not fetch tree for {repo_slug}: {e}")
+        return ""
+
+    # Filter to blobs with relevant extensions
+    candidates = []
+    for item in tree:
+        if item.get("type") != "blob":
+            continue
+        path = item.get("path", "")
+        name = Path(path).name.lower()
+        ext = Path(path).suffix.lower()
+        if ext in CONTEXT_REPO_EXTENSIONS or name in CONTEXT_REPO_EXTENSIONS:
+            score = score_file(path, "")
+            candidates.append((score, path, item.get("url", "")))
+
+    # Sort by security relevance descending, then alphabetically for stability
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+
+    # Fetch file contents within budget
+    total_chars = 0
+    sections = [f"### Context: {repo_slug}\n"]
+    included_count = 0
+    skipped_count = 0
+
+    for _score, path, blob_url in candidates:
+        if total_chars >= budget:
+            skipped_count += 1
+            continue
+        if not blob_url:
+            continue
+        try:
+            blob_resp = requests.get(blob_url, headers=headers, timeout=30)
+            if blob_resp.status_code != 200:
+                continue
+            blob_data = blob_resp.json()
+            encoding = blob_data.get("encoding", "")
+            raw = blob_data.get("content", "")
+            if encoding == "base64":
+                try:
+                    content = base64.b64decode(raw).decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+            else:
+                content = raw
+
+            remaining = budget - total_chars
+            if len(content) > remaining:
+                content = content[:remaining] + f"\n... (truncated at {remaining} chars)"
+
+            ext = Path(path).suffix.lstrip(".") or "text"
+            sections.append(f"#### {path}\n```{ext}\n{content}\n```\n")
+            total_chars += len(content)
+            included_count += 1
+        except Exception as e:
+            print(f"Warning: Could not fetch {repo_slug}/{path}: {e}")
+            continue
+
+    if included_count == 0:
+        return ""
+
+    if skipped_count:
+        sections.append(
+            f"_{skipped_count} additional file(s) omitted due to context budget._\n"
+        )
+
+    print(f"Context repo {repo_slug}: {included_count} files, {total_chars} chars")
+    return "\n".join(sections)
+
+
+def build_context_repos_section(repo_slugs: List[str], token: str) -> Optional[str]:
+    """
+    Fetch content from up to MAX_CONTEXT_REPOS repos and return a combined prompt section.
+    Returns None if no content was fetched.
+    """
+    repos = [r.strip() for r in repo_slugs if r.strip()][:MAX_CONTEXT_REPOS]
+    if not repos:
+        return None
+
+    total_budget = MAX_CONTEXT_TOTAL
+    per_repo_budget = min(MAX_CONTEXT_PER_REPO, total_budget // len(repos))
+
+    parts = []
+    chars_used = 0
+    for slug in repos:
+        remaining = total_budget - chars_used
+        if remaining <= 0:
+            break
+        content = fetch_context_repo_files(slug, token, min(per_repo_budget, remaining))
+        if content:
+            parts.append(content)
+            chars_used += len(content)
+
+    if not parts:
+        return None
+    return "\n\n".join(parts)
 
 
 class RiskRegisterClient:
@@ -422,6 +577,7 @@ def build_prompt(
     sdd_title: Optional[str] = None,
     sdd_content: Optional[str] = None,
     accepted_risks: Optional[str] = None,
+    context_repos_section: Optional[str] = None,
 ) -> str:
     """Build the Claude prompt for PR security review."""
 
@@ -461,6 +617,15 @@ def build_prompt(
 The team provided a System Design Document as background. Use this to understand the intended design and cross-reference implementation against design intent.
 
 {sdd_content[:8000]}
+
+"""
+
+    if context_repos_section:
+        prompt += f"""## Additional Repository Context
+
+The following code and documentation was fetched from related repositories to help you understand the broader system this PR operates within. Use it to identify how the changed code interacts with shared libraries, frameworks, or services.
+
+{context_repos_section}
 
 """
 
@@ -901,6 +1066,7 @@ def main():
 
     notion_sdd_url = os.getenv("NOTION_SDD_URL", "").strip()
     notion_token = os.getenv("NOTION_TOKEN", "").strip()
+    context_repos_raw = os.getenv("CONTEXT_REPOS", "").strip()
 
     # FR-003: NOTION_TOKEN only required when NOTION_SDD_URL is set
     if notion_sdd_url and not notion_token:
@@ -938,6 +1104,19 @@ def main():
         sdd_content = notion.get_page_content(page_id)
         print(f"SDD Title: {sdd_title} ({len(sdd_content)} chars)")
 
+    # Optional: fetch additional context from related repos
+    context_repos_section = None
+    if context_repos_raw:
+        repo_slugs = [r.strip() for r in context_repos_raw.split(",") if r.strip()]
+        if repo_slugs:
+            if len(repo_slugs) > MAX_CONTEXT_REPOS:
+                print(
+                    f"Warning: {len(repo_slugs)} context repos requested; "
+                    f"capping at {MAX_CONTEXT_REPOS}"
+                )
+            print(f"Fetching context from repos: {', '.join(repo_slugs[:MAX_CONTEXT_REPOS])}")
+            context_repos_section = build_context_repos_section(repo_slugs, github_token)
+
     # Accepted risks (from risk register — FR-011)
     accepted_risks_text = None
     risk_register_repo = os.getenv("RISK_REGISTER_REPO", "")
@@ -954,6 +1133,7 @@ def main():
         sdd_title=sdd_title,
         sdd_content=sdd_content,
         accepted_risks=accepted_risks_text,
+        context_repos_section=context_repos_section,
     )
     print(f"Prompt size: {len(prompt)} chars")
 

@@ -11,25 +11,21 @@ set -euo pipefail
 
 NOTION_MCP_URL="https://mcp.notion.com/mcp"
 
-echo "Checking prerequisites..."
-if ! command -v codex >/dev/null 2>&1; then
-    echo "Error: codex CLI not found. Run .setup/vscode-codex.sh first."
-    exit 1
-fi
-
-echo "  codex: $(codex --version 2>/dev/null || echo 'installed')"
-
-echo ""
 echo "Configuring Notion MCP for Codex..."
+if ! command -v codex >/dev/null 2>&1; then
+    echo "  codex CLI not found, skipping. Run .setup/vscode-codex.sh first to enable Codex support."
+else
+    echo "  codex: $(codex --version 2>/dev/null || echo 'installed')"
 
-# Remove existing definition to keep config idempotent.
-codex mcp remove notion >/dev/null 2>&1 || true
-codex mcp add notion --url "$NOTION_MCP_URL"
+    # Remove existing definition to keep config idempotent.
+    codex mcp remove notion >/dev/null 2>&1 || true
+    codex mcp add notion --url "$NOTION_MCP_URL"
 
-echo ""
-echo "Codex MCP status:"
-codex mcp get notion || true
-codex mcp list || true
+    echo ""
+    echo "Codex MCP status:"
+    codex mcp get notion || true
+    codex mcp list || true
+fi
 
 echo ""
 echo "Configuring Notion MCP for Claude Code..."

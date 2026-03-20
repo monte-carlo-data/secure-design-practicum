@@ -41,6 +41,12 @@ Ask the user:
 
 Then ask:
 
+> "Are there any related repos the reviewer should pull context from? Paste
+> comma-separated org/repo slugs (e.g. `your-org/shared-lib`) or press
+> Enter to skip. Max 3 repos — code and markdown files will be fetched."
+
+Then ask:
+
 > "Is this a test or re-run where you want to suppress Slack/Linear notifications?
 > (Y to skip notifications, Enter to send them)"
 
@@ -50,6 +56,7 @@ Summarize what will be run:
 Ready to run PR security review:
 - PR: <pr_url>
 - SDD context: <notion_sdd_url or "none">
+- Context repos: <slugs or "none">
 - Notifications: <enabled or suppressed>
 ```
 
@@ -88,6 +95,9 @@ pr_review_url: "<pr_url>"
 # Optional — adds design context from Notion (requires NOTION_TOKEN secret)
 # notion_sdd_url: "https://www.notion.so/..."
 
+# Optional — fetch code and markdown from related repos for additional context (max 3)
+# context_repos: "your-org/shared-lib,your-org/sdk"
+
 # Optional — suppress Slack/Linear notifications for this run
 skip_notifications: false
 ```
@@ -106,9 +116,13 @@ jobs:
     with:
       pr-review-url: "<pr_url>"
       # notion-sdd-url: "https://www.notion.so/..."   # optional
+      # context-repos: "your-org/shared-lib"          # optional, comma-separated, max 3
       skip-notifications: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # SOURCE_REPO_TOKEN is optional — the workflow falls back to github.token automatically.
+      # Only pass it if the PR is in a private repo outside the caller's org.
+      # SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}          # only if using SDD context
       SDD_SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}

@@ -1,9 +1,9 @@
 name: Reusable PR Security Review
 
 on:
-  # push:
-  #   paths:
-  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  push:
+    paths:
+      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       pr-review-url:
@@ -20,6 +20,14 @@ on:
         required: false
         type: boolean
         default: false
+      context-repos:
+        description: >
+          Comma-separated list of org/repo slugs to fetch for additional context
+          (e.g. "your-org/shared-lib,your-org/sdk"). Max 3 repos.
+          Fetches code and markdown files to help the reviewer understand related systems.
+        required: false
+        type: string
+        default: ''
     secrets:
       ANTHROPIC_API_KEY:
         description: 'Anthropic API key for Claude'
@@ -108,6 +116,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         PR_REVIEW_URL: ${{ inputs.pr-review-url }}
         NOTION_SDD_URL: ${{ inputs.notion-sdd-url }}
+        CONTEXT_REPOS: ${{ inputs.context-repos }}
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |

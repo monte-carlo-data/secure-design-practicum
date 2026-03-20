@@ -1,10 +1,10 @@
 name: PR Security Review
 
 on:
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   paths:
-  #     - '.github/pr-review-config.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/pr-review-config.yml'
 
   workflow_dispatch:
     inputs:
@@ -21,6 +21,12 @@ on:
         required: false
         type: boolean
         default: false
+      context_repos:
+        description: >
+          Comma-separated list of org/repo slugs to fetch for additional context
+          (e.g. "your-org/shared-lib,your-org/sdk"). Max 3 repos.
+        required: false
+        type: string
 
 jobs:
   pr-review:
@@ -75,6 +81,7 @@ jobs:
             gh.write(f'pr_review_url={pr_review_url}\n')
             gh.write(f'notion_sdd_url={cfg.get(\"notion_sdd_url\", \"\") or \"\"}\n')
             gh.write(f'skip_notifications={str(cfg.get(\"skip_notifications\", False)).lower()}\n')
+            gh.write(f'context_repos={cfg.get(\"context_repos\", \"\") or \"\"}\n')
         "
 
     - name: Set up Python
@@ -93,6 +100,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         PR_REVIEW_URL: ${{ inputs.pr_review_url || steps.config.outputs.pr_review_url }}
         NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
+        CONTEXT_REPOS: ${{ inputs.context_repos || steps.config.outputs.context_repos }}
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |

@@ -11,4 +11,3 @@ fi
 npm install -g @anthropic-ai/claude-code
 npm install -g @cloud-copilot/iam-collect
 npm install -g npm
-npm install -g serverless
