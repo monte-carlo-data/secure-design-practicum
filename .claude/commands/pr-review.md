@@ -67,6 +67,7 @@ Ready to run PR security review:
 Ask the user how they want to run it:
 
 > "How would you like to trigger the review?
+>
 > - [M] Manual — run `workflow_dispatch` in GitHub Actions now
 > - [C] Config file — add `.github/pr-review-config.yml` to the PR branch
 > - [R] Reusable workflow — show the `workflow_call` snippet to add to your pipeline"
@@ -138,6 +139,7 @@ Explain: "Add this to your repo's workflow. It references the canonical script f
 Ask the user:
 
 > "Does the repo running this workflow have the required secrets configured?
+>
 > - `ANTHROPIC_API_KEY` — required
 > - `NOTION_TOKEN` — required only if providing a Notion SDD URL
 > - `SDD_SLACK_WEBHOOK_URL` — optional (enables Slack notifications)
@@ -161,7 +163,7 @@ When the user shares results, walk through:
 Explain what the recommendation means and what action is expected:
 
 | Recommendation | Meaning | Next step |
-|---|---|---|
+| --- | --- | --- |
 | **Required** | Security team must be consulted before this PR merges | Post in your security channel before merging |
 | **Recommended** | Security team should review but is not blocking | Consider posting in your security channel for async review |
 | **Not Required** | No Security team involvement needed | Proceed — the security questions are still worth addressing in review |
@@ -169,6 +171,7 @@ Explain what the recommendation means and what action is expected:
 ### Security questions
 
 For each question, help the user understand:
+
 - What the specific risk is in their code
 - Which file/function it applies to (`affected_file` / `affected_line`)
 - What the exploit scenario means in practice — who can trigger it, what they gain
@@ -180,9 +183,79 @@ Note that questions below 70% confidence are suppressed from the PR comment enti
 ### Notifications
 
 If notifications fired (Slack message or Linear ticket), confirm the user knows:
+
 - The Slack message went to the configured security channel
 - A Linear ticket was created in the Security team's Triage queue (Required only)
 - They should respond to or monitor those channels for follow-up
+
+---
+
+## Step 5B — Capture decisions per question
+
+After walking through the review results with the user, ask:
+
+> "Would you like to record decisions for the security questions? (Y/N)
+> Decisions are saved to `decisions.md` in the review directory and can be updated later with `/decision <slug>`."
+
+If the user answers **N**, skip to Step 6.
+
+If the user answers **Y**:
+
+- Ask for a slug if one hasn't been established (derive from the PR title: lowercase, spaces to underscores, strip special chars).
+
+- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it. If the file contains entries from prior PR reviews for the same slug, note that — new questions from this PR will be merged in (deduplicating by question title).
+
+- For each question in the `## Follow-Up Questions` section of the review, present:
+
+```text
+## [N]. [Question title]
+
+[Full question text including exploit scenario and code reference]
+
+Current decision: [prior decision if loaded, otherwise "Not recorded"]
+
+Options:
+  [1] Resolved
+  [2] Accepted Risk  (feedback required)
+  [3] Deferred       (feedback required)
+  [4] Requires Fix
+  [S] Skip (keep as "Not recorded")
+```
+
+- After the user selects a disposition:
+  - For **Accepted Risk** or **Deferred**: prompt "Feedback (required):" and re-prompt if empty.
+  - For **Resolved** or **Requires Fix**: prompt "Feedback (optional, press Enter to skip):"
+  - For **Skip**: move to the next question with no change.
+
+- After all questions are processed, assemble the `decisions.md` content. If prior entries exist for the same slug, merge: questions that appear in both the existing file and this PR review are updated in place; new questions from this PR are appended. When a question was seen in multiple PRs, list each PR URL under a `**Sources:**` field.
+
+```markdown
+# Decisions: <PR Title>
+
+**Source:** <GitHub PR URL>
+**Date:** <today's date>
+**Reviewer:** <reviewer name>
+
+---
+
+## 1. [Follow-up question title]
+
+[Full question text copied from ## Follow-Up Questions in the review]
+
+**Sources:** <PR URL(s) — only present when merged from multiple PRs>
+**Decision:** [Resolved / Accepted Risk / Deferred / Requires Fix / Not recorded]
+**Feedback:** [free-text rationale — omit this line entirely if no feedback was provided]
+
+---
+
+## 2. ...
+```
+
+- Show the full `decisions.md` content and ask for confirmation before writing:
+
+> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+
+- On confirmation, write the file. Report the path to the user.
 
 ---
 

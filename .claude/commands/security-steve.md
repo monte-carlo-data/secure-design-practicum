@@ -235,6 +235,16 @@ Produce the full review in this format:
 - [bulleted list of most important unchecked checklist items]
 ```
 
+**Recording decisions:** Security questions from this review can be dispositioned using
+`/decision <slug>`. Valid decisions are `Resolved`, `Accepted Risk` (feedback required),
+`Deferred` (feedback required), and `Requires Fix`. Decisions are saved to
+`reviews/<slug>/decisions.md` as a standalone audit record.
+
+**Skill recommendation:** For future SDD reviews, you can run `/sdd-review <notion_url>`
+directly — it includes TRACKING.md updates, the full queue management workflow, and a
+built-in decision capture step. Use `/security-steve` when you're not sure which review
+type you need.
+
 ---
 
 ### Path B: PR Review
@@ -319,6 +329,15 @@ Produce security questions with the following fields for each:
 [SOC 2 scope changes, audit logging requirements, data residency considerations — or "None"]
 ```
 
+**Recording decisions:** Security questions from this review can be dispositioned using
+`/decision <slug>`. Valid decisions are `Resolved`, `Accepted Risk` (feedback required),
+`Deferred` (feedback required), and `Requires Fix`. Decisions are saved to
+`reviews/<slug>/decisions.md` as a standalone audit record.
+
+**Skill recommendation:** For future PR reviews, you can run `/pr-review <pr_url>` directly —
+it includes inline GitHub comments, artifact output, and a built-in decision capture step.
+Use `/security-steve` when you're not sure which review type applies.
+
 ---
 
 ### Path C: Quick Check
@@ -361,6 +380,14 @@ If Not Required:
 
 > "This looks low risk based on the description. You can proceed — no Security team involvement
 > needed. If the design changes significantly, re-run this check."
+
+Now that you know what kind of review fits your context:
+
+- Have a Notion SDD? → `/sdd-review <notion_url>`
+- Have a GitHub PR? → `/pr-review <pr_url>`
+- Need to record decisions on a completed review? → `/decision <slug>`
+
+Use `/security-steve` next time if you're still not sure which applies.
 
 ---
 
