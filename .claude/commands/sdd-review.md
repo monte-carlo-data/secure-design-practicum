@@ -269,6 +269,72 @@ Ask the user:
 
 ---
 
+## Step 4B — Capture decisions per question
+
+After presenting the review output and confirming the assessment looks right, ask:
+
+> "Would you like to record decisions for the security questions now? (Y/N)
+> Decisions are saved to `decisions.md` in the review directory and can be updated later with `/decision <slug>`."
+
+If the user answers **N**, skip to Step 5. No `decisions.md` is created at this time.
+
+If the user answers **Y**:
+
+- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it and display the prior decisions so the user can see what was previously recorded before proceeding.
+
+- For each question in the `## Follow-Up Questions` section of the review, present:
+
+```text
+## [N]. [Question title]
+
+[Full question text]
+
+Current decision: [prior decision if loaded, otherwise "Not recorded"]
+
+Options:
+  [1] Resolved
+  [2] Accepted Risk  (feedback required)
+  [3] Deferred       (feedback required)
+  [4] Requires Fix
+  [S] Skip (keep as "Not recorded")
+```
+
+- After the user selects a disposition:
+  - For **Accepted Risk** or **Deferred**: prompt "Feedback (required):" and re-prompt if empty.
+  - For **Resolved** or **Requires Fix**: prompt "Feedback (optional, press Enter to skip):"
+  - For **Skip**: move to the next question with no change.
+
+- After all questions are processed, assemble the `decisions.md` content using this format:
+
+```markdown
+# Decisions: <SDD Title>
+
+**Source:** <Notion SDD URL>
+**Date:** <today's date>
+**Reviewer:** <reviewer name>
+
+---
+
+## 1. [Follow-up question title]
+
+[Full question text copied from ## Follow-Up Questions in the review]
+
+**Decision:** [Resolved / Accepted Risk / Deferred / Requires Fix / Not recorded]
+**Feedback:** [free-text rationale — omit this line entirely if no feedback was provided]
+
+---
+
+## 2. ...
+```
+
+- Show the full `decisions.md` content and ask for confirmation before writing:
+
+> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+
+- On confirmation, write the file. Report the path to the user.
+
+---
+
 ## Step 5 — Save the review and record the decision
 
 ### Part A — Offer to write a review file
@@ -376,6 +442,7 @@ Use the Lucid MCP to import the diagram if the user provides it.
 If the involvement level is **Required** or **Recommended**, ask:
 
 > "Would you like to notify the Security team?
+>
 > - [S] Post to Slack
 > - [L] Create a Linear triage ticket (Required only)
 > - [B] Both

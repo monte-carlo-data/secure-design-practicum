@@ -27,6 +27,7 @@ Resources and automation for conducting security architecture reviews of System 
 | **Run SDD review interactively in Claude Code** | `/sdd-review` skill in Claude Code |
 | **Run PR review interactively in Claude Code** | `/pr-review` skill in Claude Code |
 | **Triage any security question with AI** | `/security-steve` skill in Claude Code |
+| **Record decisions on a completed review** | `/decision <slug>` skill in Claude Code |
 | **See all resources and workflows** | [Security Review Guide](security-review-guide.md) |
 | **See an example of a completed review** | [Example Review](reviews/example_custom_integration/review.md) |
 
@@ -144,9 +145,10 @@ your-repo/
 
 | File | Purpose |
 |------|---------|
-| [sdd-review.md](.claude/commands/sdd-review.md) | Interactive Claude Code skill for the SDD review workflow |
-| [pr-review.md](.claude/commands/pr-review.md) | Interactive Claude Code skill for the PR security review workflow |
+| [sdd-review.md](.claude/commands/sdd-review.md) | Interactive Claude Code skill for the SDD review workflow; includes built-in decision capture |
+| [pr-review.md](.claude/commands/pr-review.md) | Interactive Claude Code skill for the PR security review workflow; includes built-in decision capture |
 | [security-steve.md](.claude/commands/security-steve.md) | Security Concierge triage and dispatch skill — routes any security question to the right workflow |
+| [decision.md](.claude/commands/decision.md) | Record or update per-question decisions on a completed review (`/decision <slug>`) |
 
 ---
 
@@ -166,6 +168,7 @@ your-repo/
 2. **Conduct Review** — Use the [Security Architecture Review Template](security-architecture-review-template.md)
 3. **Document** — Save the review under `reviews/<feature-name>/review.md`
 4. **Track** — Add a row to [reviews/TRACKING.md](reviews/TRACKING.md)
+5. **Record Decisions** — Disposition each follow-up question using `/decision <slug>` in Claude Code
 
 ---
 
