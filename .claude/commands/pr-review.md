@@ -95,7 +95,7 @@ pr_review_url: "<pr_url>"
 # notion_sdd_url: "https://www.notion.so/..."
 
 # Optional — fetch code and markdown from related repos for additional context (max 3)
-# context_repos: "monte-carlo-data/agent-hub,monte-carlo-data/sdk"
+# context_repos: "<org>/repo-a,<org>/repo-b"
 
 # Optional — suppress Slack/Linear notifications for this run
 skip_notifications: false

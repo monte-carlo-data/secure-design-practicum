@@ -1,7 +1,7 @@
 ---
 name: decision
 description: >
-  Interactive decision capture for Monte Carlo security reviews. Records/updates
+  Interactive decision capture for security reviews. Records/updates
   decisions on security questions. Use when: "record decisions for <slug>",
   "update decisions on this review", "/decision <slug>". Accepts a review slug or path.
 ---
