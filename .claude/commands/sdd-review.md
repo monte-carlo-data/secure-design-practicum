@@ -1,9 +1,9 @@
 ---
 name: sdd-review
 description: >
-  Security review workflow for Notion design documents (SDDs) at Monte Carlo. Manages
-  the review queue and TRACKING.md. Use when: "let's review some SDDs", "what SDDs
-  are pending?", "run the sdd review". Accepts a Notion URL.
+  Security review workflow for Notion design documents (SDDs). Manages the review
+  queue and TRACKING.md. Use when: "let's review some SDDs", "what SDDs are pending?",
+  "run the sdd review". Accepts a Notion URL.
 context: fork
 ---
 
@@ -70,17 +70,15 @@ Parse the Review Log table. For each row capture:
 
 **Platform context:** `review-software/guides/platform_context.md`
 
-This document describes Monte Carlo's architecture: multi-tenancy model (AccountContext,
-AccountAwareSoftDeleteModel), IAM and authentication patterns (JWT tokens, IAM role
-assumption with external IDs, IGW KeyAuthorizer), data pipeline (Kinesis, S3, Lambda),
-Integration Gateway (IGW), existing security controls (GraphQL authorization, Secrets
-Manager, DataDog), and key repositories.
+This document describes the platform's architecture: multi-tenancy model, IAM and
+authentication patterns, data pipeline, integration gateway, existing security controls,
+and key repositories.
 
-Load this context into memory. It is used in Step 4 to make analysis MC-specific — for
-example, flagging when a design bypasses AccountContext scoping, introduces a new Kinesis
-stream without tenant isolation at the consumer level, or stores secrets outside Secrets
-Manager. Without this context the review will be generic rather than grounded in MC's
-actual architecture.
+Load this context into memory. It is used in Step 4 to make analysis specific to this
+platform's architecture — for example, flagging when a design bypasses tenant scoping,
+introduces new data streams without tenant isolation, or stores secrets improperly.
+Without this context the review will be generic rather than grounded in the actual
+architecture.
 
 ---
 
@@ -140,7 +138,7 @@ frameworks to produce grounded findings, and (C) synthesize into a final review 
 
 ### Part A — Involvement scoring
 
-Analyze the SDD content and score it using Monte Carlo's NIST 800-30 based model.
+Analyze the SDD content and score it using a NIST 800-30 based model.
 Score **Likelihood (1–5)** × **Impact (1–5)** = Risk Score (1–25).
 
 **Required (score 15–25)** — one or more of:
@@ -148,7 +146,7 @@ Score **Likelihood (1–5)** × **Impact (1–5)** = Risk Score (1–25).
 - New external API surface (public endpoints, webhooks, OAuth flows, customer-facing APIs)
 - Data classification includes Critical items (credentials, encryption keys, customer PII, auth tokens)
 - Authentication or authorization model is being changed or extended
-- Customer-supplied code or queries execute on Monte Carlo infrastructure
+- Customer-supplied code or queries execute on internal infrastructure
 - Cross-tenant data flows or changes to multi-tenancy isolation
 - New third-party integrations that receive, transmit, or store customer data
 - New encryption schemes, key management, or cryptographic primitives
@@ -195,7 +193,7 @@ that are relevant to this design — skip domains where nothing applies.
 Apply the "Security Steve" framework from `review-software/guides/Quick Security Review.md`.
 For each of the 10 questions, answer it based on the SDD content:
 
-1. What does this feature do, and who uses it? (MC persona, internal vs. customer-facing)
+1. What does this feature do, and who uses it? (internal vs. customer-facing)
 2. What data does it touch? (types, sensitivity, source, destination)
 3. How do users authenticate? (Okta SSO, API keys, service accounts, credential storage)
 4. What can different users do? (permission levels, cross-user data access, enforcement)
@@ -454,12 +452,11 @@ If the involvement level is **Required** or **Recommended**, ask:
 
 ### Slack notification
 
-Post to **#team-security** (channel `C09BZKBNUK0`) using the `mcp__slack__slack_post_message`
-tool (or equivalent send tool available in the Slack MCP).
+Post to **#team-security** using the `mcp__slack__slack_post_message` tool (or equivalent
+send tool available in the Slack MCP).
 
 If the Slack MCP is not authenticated (tool returns an auth error), tell the user and provide
-the message text to copy-paste manually into #team-security. To re-authenticate, run
-`.setup/mcp-slack.sh` from the mc-security repo root.
+the message text to copy-paste manually into #team-security.
 
 Message format:
 
@@ -541,7 +538,7 @@ Session summary:
 - If the user says "skip" at any point, move to the next SDD without modifying the tracking file.
 - Sec Relevant column should be set to "Yes" if involvement is Required or Recommended, "No" if Not Required.
 - The review file path convention is `./review-software/reviews/<slug>/review.md`.
-- Slack notifications use `mcp__slack__slack_post_message`. If auth fails, provide copy-paste message text and direct the user to #team-security. To re-authenticate, run `.setup/mcp-slack.sh`.
+- Slack notifications use `mcp__slack__slack_post_message`. If auth fails, provide copy-paste message text and direct the user to #team-security.
 - If the SDD describes an internal tool that needs hosting, delegate to the `common` agent
   to route it correctly.
 

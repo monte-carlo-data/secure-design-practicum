@@ -1,9 +1,8 @@
 ---
 name: pr-review
 description: >
-  Security review for GitHub pull requests at Monte Carlo. Use when: "review this
-  PR", "security review this pull request", "run pr-review on this". Accepts a
-  GitHub PR URL.
+  Security review for GitHub pull requests. Use when: "review this PR", "security
+  review this pull request", "run pr-review on this". Accepts a GitHub PR URL.
 context: fork
 ---
 
@@ -42,8 +41,8 @@ Ask the user:
 Then ask:
 
 > "Are there any related repos the reviewer should pull context from? Paste
-> comma-separated org/repo slugs (e.g. `monte-carlo-data/agent-hub`) or press
-> Enter to skip. Max 3 repos — code and markdown files will be fetched."
+> comma-separated org/repo slugs (e.g. `my-org/my-repo`) or press Enter to skip.
+> Max 3 repos — code and markdown files will be fetched."
 
 Then ask:
 
@@ -75,7 +74,7 @@ Ask the user how they want to run it:
 
 Direct the user to:
 
-1. Go to **Actions > PR Security Review > Run workflow** in the `mc-security` repo
+1. Go to **Actions > PR Security Review > Run workflow** in the security repo
 2. Fill in:
    - **GitHub PR URL**: `<pr_url>`
    - **Notion SDD URL**: `<notion_sdd_url>` (leave blank if none)
@@ -93,7 +92,7 @@ Show the config to add to `.github/pr-review-config.yml` in their branch:
 pr_review_url: "<pr_url>"
 
 # Optional — adds design context from Notion (requires NOTION_TOKEN secret)
-# notion_sdd_url: "https://www.notion.so/montecarlodata/..."
+# notion_sdd_url: "https://www.notion.so/..."
 
 # Optional — fetch code and markdown from related repos for additional context (max 3)
 # context_repos: "monte-carlo-data/agent-hub,monte-carlo-data/sdk"
@@ -112,11 +111,11 @@ Show the caller snippet:
 ```yaml
 jobs:
   pr-review:
-    uses: monte-carlo-data/mc-security/.github/workflows/pr-review-reusable.yml@main
+    uses: <org>/security/.github/workflows/pr-review-reusable.yml@main
     with:
       pr-review-url: "<pr_url>"
       # notion-sdd-url: "https://www.notion.so/..."   # optional
-      # context-repos: "monte-carlo-data/agent-hub"   # optional, comma-separated, max 3
+      # context-repos: "<org>/my-repo"                # optional, comma-separated, max 3
       skip-notifications: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -129,7 +128,7 @@ jobs:
 ```
 
 Explain: "Add this to your repo's workflow. It references the canonical script from
-`mc-security` directly — no need to copy files."
+the security repo directly — no need to copy files."
 
 ---
 
@@ -162,8 +161,8 @@ Explain what the recommendation means and what action is expected:
 
 | Recommendation | Meaning | Next step |
 |---|---|---|
-| **Required** | Security team must be consulted before this PR merges | Post in [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) before merging |
-| **Recommended** | Security team should review but is not blocking | Consider posting in [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) for async review |
+| **Required** | Security team must be consulted before this PR merges | Post in #team-security before merging |
+| **Recommended** | Security team should review but is not blocking | Consider posting in #team-security for async review |
 | **Not Required** | No Security team involvement needed | Proceed — the security questions are still worth addressing in review |
 
 ### Security questions
