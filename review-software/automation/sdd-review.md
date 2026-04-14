@@ -17,7 +17,7 @@ A GitHub Action that reviews System Design Documents (SDDs) from Notion and gene
 
 The review automatically assesses whether your design needs Security team involvement and surfaces a recommendation at the top of the output. Teams can also use this rubric to self-assess before running the action.
 
-The assessment uses Organization's [NIST 800-30 based risk model](https://www.notion.so/montecarlodata/Risk-Assessment-Process-1d6334399e65809b8152f79d1fdc2827): each design is scored on **Likelihood (1–5) × Impact (1–5)** = Risk Score (1–25). High (15–25) triggers Required, Medium (5–14) triggers Recommended, Low (1–4) is Not Required.
+The assessment uses Organization's [NIST 800-30 based risk model](https://www.notion.so/<organization>/Risk-Assessment-Process-1d6334399e65809b8152f79d1fdc2827): each design is scored on **Likelihood (1–5) × Impact (1–5)** = Risk Score (1–25). High (15–25) triggers Required, Medium (5–14) triggers Recommended, Low (1–4) is Not Required.
 
 ### Required — Security must be consulted before implementation proceeds
 
@@ -173,7 +173,7 @@ Go to **Actions > SDD Security Review > Run workflow** and fill in:
 | Input | Required | Description |
 |-------|----------|-------------|
 | **Notion SDD URL** | Yes | The URL of your SDD page in Notion |
-| **Source Code Repos** | No | Comma-separated repo names (e.g., `montecarlodata/data-collector,montecarlodata/monolith-django`) |
+| **Source Code Repos** | No | Comma-separated repo names (e.g., `<organization>/data-collector,<organization>/monolith`) |
 | **Source File Patterns** | No | Comma-separated paths to focus on (e.g., `src/auth/,models.py,config/iam`) |
 | **Specification Markdown** | No | Path to a spec file in your repo (e.g., `docs/spec.md`) |
 | **Architecture Diagram** | No | Path to a diagram file (e.g., `docs/architecture.png`) |
@@ -283,7 +283,7 @@ Add `.github/sdd-review-config.yml` to your branch with the same fields as the m
 
 ```yaml
 # .github/sdd-review-config.yml
-notion_sdd_url: "https://www.notion.so/montecarlodata/Your-SDD-Page-abc123def456"
+notion_sdd_url: "https://www.notion.so/<organization>/Your-SDD-Page-abc123def456"
 
 # All fields below are optional
 source_repos: "<organization>/monolith,<organization>/collector"
@@ -375,7 +375,7 @@ If you're testing or re-running a review and don't want to spam Slack, set `skip
 **PR-triggered** — add to `.github/sdd-review-config.yml`:
 
 ```yaml
-notion_sdd_url: "https://www.notion.so/montecarlodata/Your-SDD-Page-abc123def456"
+notion_sdd_url: "https://www.notion.so/<organization>/Your-SDD-Page-abc123def456"
 skip_notifications: true
 ```
 

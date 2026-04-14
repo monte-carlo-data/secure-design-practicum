@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       source-repos:
-        description: 'Source code repos (comma-separated, e.g. montecarlodata/repo1,montecarlodata/repo2)'
+        description: 'Source code repos (comma-separated, e.g. <organization>/repo1,<organization>/repo2)'
         required: false
         type: string
         default: ''
@@ -87,12 +87,12 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Checkout mc-security scripts
+    - name: Checkout security scripts
       uses: actions/checkout@v6
       with:
-        repository: monte-carlo-data/mc-security
+        repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
-        path: .mc-security
+        path: .security
         sparse-checkout: |
           .github/scripts/sdd_reviewer.py
           .github/scripts/sdd_notify.py
@@ -120,11 +120,11 @@ jobs:
         SECURITY_CONCERNS_PATH: ${{ inputs.security-concerns-path }}
         PLATFORM_CONTEXT_PATH: ${{ inputs.platform-context-path }}
         TEAM_QUESTIONS_PATH: ${{ inputs.team-questions-path }}
-        RISK_REGISTER_REPO: monte-carlo-data/mc-risk-register
+        RISK_REGISTER_REPO: <organization>/risk-register
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        python .mc-security/.github/scripts/sdd_reviewer.py
+        python .security/.github/scripts/sdd_reviewer.py
 
     - name: Notify Security
       if: success() && inputs.skip-notifications != true
@@ -135,7 +135,7 @@ jobs:
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       run: |
-        python3 .mc-security/.github/scripts/sdd_notify.py
+        python3 .security/.github/scripts/sdd_notify.py
 
     - name: Set review status
       id: review-status

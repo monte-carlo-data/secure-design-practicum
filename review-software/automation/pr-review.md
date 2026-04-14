@@ -106,7 +106,7 @@ Add `.github/pr-review-config.yml` to your branch:
 pr_review_url: "https://github.com/org/repo/pull/42"
 
 # Optional — adds design context from Notion (requires NOTION_TOKEN secret)
-notion_sdd_url: "https://www.notion.so/montecarlodata/Your-SDD-Page-abc123def456"
+notion_sdd_url: "https://www.notion.so/<organization>/Your-SDD-Page-abc123def456"
 
 # Optional — fetch code and markdown from related repos for additional context (max 3)
 # context_repos: "<organization>/hub,<organization>/sdk"

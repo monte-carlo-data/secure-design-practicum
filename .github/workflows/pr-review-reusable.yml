@@ -23,7 +23,7 @@ on:
       context-repos:
         description: >
           Comma-separated list of org/repo slugs to fetch for additional context
-          (e.g. "monte-carlo-data/agent-hub,monte-carlo-data/sdk"). Max 3 repos.
+          (e.g. "<organization>/hub,<organization>/sdk"). Max 3 repos.
           Fetches code and markdown files to help the reviewer understand related systems.
         required: false
         type: string
@@ -83,12 +83,12 @@ jobs:
         echo "PR security review already ran for this commit SHA — skipping to avoid duplicate findings."
         exit 0
 
-    - name: Checkout mc-security scripts
+    - name: Checkout security scripts
       uses: actions/checkout@v6
       with:
-        repository: monte-carlo-data/mc-security
+        repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
-        path: .mc-security
+        path: .security
         sparse-checkout: |
           .github/scripts/pr_reviewer.py
           .github/scripts/sdd_notify.py
@@ -114,7 +114,7 @@ jobs:
         PR_NUMBER: ${{ github.event.pull_request.number }}
         CONTEXT_REPOS: ${{ inputs.context-repos }}
       run: |
-        python .mc-security/.github/scripts/pr_reviewer.py
+        python .security/.github/scripts/pr_reviewer.py
 
     - name: Notify Security
       if: success() && inputs.skip-notifications != true
@@ -125,7 +125,7 @@ jobs:
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       run: |
-        python3 .mc-security/.github/scripts/sdd_notify.py
+        python3 .security/.github/scripts/sdd_notify.py
 
     - name: Save run marker for cache
       if: github.event_name == 'pull_request' && success()

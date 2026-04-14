@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       source_repos:
-        description: 'Source code repos (comma-separated, e.g. montecarlodata/repo1,montecarlodata/repo2)'
+        description: 'Source code repos (comma-separated, e.g. <organization>/repo1,<organization>/repo2)'
         required: false
         type: string
       source_file_patterns:
@@ -108,7 +108,7 @@ jobs:
         SECURITY_CONCERNS_PATH: ${{ inputs.security_concerns_path || steps.config.outputs.security_concerns_path }}
         PLATFORM_CONTEXT_PATH: ${{ inputs.platform_context_path || steps.config.outputs.platform_context_path }}
         TEAM_QUESTIONS_PATH: ${{ inputs.team_questions_path || steps.config.outputs.team_questions_path }}
-        RISK_REGISTER_REPO: monte-carlo-data/mc-risk-register
+        RISK_REGISTER_REPO: <organization>/risk-register
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |

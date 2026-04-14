@@ -1,5 +1,5 @@
 """
-Shared AI model configuration for all mc-security pipelines, scripts, and agents.
+Shared AI model configuration for all security pipelines, scripts, and agents.
 
 All model references in this repo resolve through this module so that upgrading
 or swapping models is a single-place change.
@@ -11,8 +11,8 @@ Option A — No code change (preferred for upgrades):
         CLAUDE_MODEL_PRIMARY  →  e.g. "claude-opus-4-6"
         CLAUDE_MODEL_FAST     →  e.g. "claude-haiku-4-5-20251001"
     All pipelines pick up the new value on the next run.
-    Org vars: github.com/organizations/monte-carlo-data/settings/variables/actions
-    Repo vars: github.com/monte-carlo-data/mc-security/settings/variables/actions
+    Org vars: github.com/organizations/<organization>/settings/variables/actions
+    Repo vars: github.com/<organization>/security/settings/variables/actions
 
 Option B — Code change (required for changing the fallback default):
     Edit the default strings below, commit, and merge.

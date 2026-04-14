@@ -31,7 +31,7 @@ on:
         description: 'Lucidchart OAuth token'
         required: true
       SOURCE_REPO_TOKEN:
-        description: 'GitHub token with access to monte-carlo-data/mc-security (for fetching deploy scripts)'
+        description: 'GitHub token with access to <organization>/security (for fetching deploy scripts)'
         required: false
     outputs:
       deployed-count:
@@ -54,12 +54,12 @@ jobs:
       with:
         fetch-depth: 2
 
-    - name: Checkout mc-security scripts
+    - name: Checkout security scripts
       uses: actions/checkout@v6
       with:
-        repository: monte-carlo-data/mc-security
+        repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
-        path: .mc-security
+        path: .security
         sparse-checkout: |
           .github/scripts/deploy-to-lucidchart.sh
         sparse-checkout-cone-mode: false
@@ -123,12 +123,12 @@ jobs:
         CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
         MAPPINGS_FILE: ${{ inputs.mappings-file }}
       run: |
-        chmod +x .mc-security/.github/scripts/deploy-to-lucidchart.sh
+        chmod +x .security/.github/scripts/deploy-to-lucidchart.sh
 
         if [ "${{ inputs.force-deploy }}" = "true" ] || [ "$CHANGED_FILES" = "all" ]; then
-          .mc-security/.github/scripts/deploy-to-lucidchart.sh --force
+          .security/.github/scripts/deploy-to-lucidchart.sh --force
         else
-          .mc-security/.github/scripts/deploy-to-lucidchart.sh --deploy-changed
+          .security/.github/scripts/deploy-to-lucidchart.sh --deploy-changed
         fi
         echo "deployed-count=$(echo "$CHANGED_FILES" | tr ',' '\n' | wc -l | xargs)" >> $GITHUB_OUTPUT
 

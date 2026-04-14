@@ -24,7 +24,7 @@ on:
       context_repos:
         description: >
           Comma-separated list of org/repo slugs to fetch for additional context
-          (e.g. "monte-carlo-data/agent-hub,monte-carlo-data/sdk"). Max 3 repos.
+          (e.g. "<organization>/agent-hub,<organization>/sdk"). Max 3 repos.
         required: false
         type: string
 

@@ -408,7 +408,7 @@ class RiskRegisterClient:
                 "Risk Treatment": "Mitigate|Transfer|Accept",
                 "Treatment Status": "Done|In progress",
                 "Residual Risk Score": 15,
-                "Risk Owner": "owner@montecarlodata.com",
+                "Risk Owner": "owner@organization.com",
                 "Approved At": "2025-04-24T02:27:52.594Z"
             }
         ],

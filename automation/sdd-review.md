@@ -390,7 +390,7 @@ skip_notifications: true
 ```yaml
 jobs:
   sdd-review:
-    uses: monte-carlo-data/secure-design-practicum/.github/workflows/sdd-review-reusable.yml@main
+    uses: <organization>/secure-design-practicum/.github/workflows/sdd-review-reusable.yml@main
     with:
       notion-sdd-url: "https://www.notion.so/..."
       skip-notifications: true
