@@ -28,8 +28,8 @@ import requests
 
 REVIEW_JSON = os.getenv("REVIEW_OUTPUT_FILE", "sdd_review_output.json")
 
-LINEAR_TEAM_ID = "923e741b-0f2d-49dd-aad9-8100b88b08bd"   # Security team
-LINEAR_TRIAGE_STATUS_ID = "6f91add6-bb14-4340-9c14-a9acc684c6fb"  # Triage
+LINEAR_TEAM_ID = os.getenv("LINEAR_TEAM_ID", "")           # Set LINEAR_TEAM_ID env var or repo secret
+LINEAR_TRIAGE_STATUS_ID = os.getenv("LINEAR_TRIAGE_STATUS_ID", "")  # Set LINEAR_TRIAGE_STATUS_ID env var or repo secret
 LINEAR_API_URL = "https://api.linear.app/graphql"
 
 NOTIFY_LEVELS = {"Required", "Recommended"}
