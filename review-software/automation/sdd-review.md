@@ -178,7 +178,7 @@ Go to **Actions > SDD Security Review > Run workflow** and fill in:
 | **Specification Markdown** | No | Path to a spec file in your repo (e.g., `docs/spec.md`) |
 | **Architecture Diagram** | No | Path to a diagram file (e.g., `docs/architecture.png`) |
 | **Security Concerns** | No | Path to markdown with known security considerations |
-| **Platform Context** | No | Path to MC platform architecture doc (e.g., `docs/platform_context.md`) |
+| **Platform Context** | No | Path to platform architecture doc (e.g., `docs/platform_context.md`) |
 | **Team Questions** | No | Path to markdown with specific questions (e.g., `docs/team_questions.md`) |
 
 ## Output
@@ -248,11 +248,11 @@ with falsified data or intercept sensitive commands.
 The review also includes an **Architecture Diagram** section with an ASCII diagram inline and a draw.io file in the artifacts:
 
     ┌─────────────────────────────────────────────────────────────────────┐
-    │                        MC Platform (Trust Zone)                     │
-    │                                                                     │
+    │                          Platform (Trust Zone)                     │
+    │                                                                    │
     │  ┌──────────┐    Kinesis     ┌─────────────┐    S3 (TLS)           │
     │  │ Monolith │───────────────>│ Normalizer  │──────────────┐        │
-    │  │ (Django) │    (events)    └─────────────┘              v        │
+    │  │          │    (events)    └─────────────┘              v        │
     │  │          │                                    ┌──────────────┐  │
     │  │ Jinja    │<── Kinesis ─── Data Collector <──  │ Jinja        │  │
     │  │ Render   │    (results)        ^              │ Templates    │  │

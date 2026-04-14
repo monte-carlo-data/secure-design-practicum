@@ -719,7 +719,7 @@ Generate two representations of the system architecture described in the SDD:
 - Show system components, data flows, trust boundaries, and external integrations
 - Use different colors to indicate sensitivity: red for critical trust boundaries, orange for high-risk data flows, blue for standard components, green for security controls
 - Label all connections with the protocol/mechanism (e.g. "TLS", "JWT", "IAM role", "Kinesis")
-- Group components by trust zone (e.g. "Customer VPC", "MC Platform", "External Services")
+- Group components by trust zone (e.g. "Customer VPC", "Platform", "External Services")
 - The XML must be a complete, self-contained draw.io file (wrapped in <mxfile> tags)
 
 **b) ASCII architecture diagram:**

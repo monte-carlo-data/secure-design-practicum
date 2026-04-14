@@ -4,7 +4,7 @@
 
 **SDD:** Extensible Connector Framework — Partner Extension Model
 
-**Tech Stack:** Python, Jinja2, Docker, Django/PostgreSQL, AWS (S3, SQS, Lambda, ECS), GraphQL
+**Tech Stack:** Python, Jinja2, Docker, PostgreSQL, AWS (S3, SQS, Lambda, ECS), GraphQL
 
 **Scope:** Architecture/design review of the SDD, supplemented with code review of relevant backend repos.
 
