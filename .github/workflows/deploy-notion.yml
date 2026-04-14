@@ -1,12 +1,12 @@
 name: Deploy Markdown to Notion
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - '**/*.md'
-      - '.github/notion-mappings.txt'
-      - '.github/workflows/deploy-notion.yml'
-      - '.github/scripts/deploy-to-notion.sh'
+  # push:
+  #   branches: [ main ]
+  #   paths:
+  #     - '**/*.md'
+  #     - '.github/notion-mappings.txt'
+  #     - '.github/workflows/deploy-notion.yml'
+  #     - '.github/scripts/deploy-to-notion.sh'
   workflow_dispatch:
     inputs:
       force_all_pages:

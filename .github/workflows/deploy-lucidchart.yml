@@ -1,13 +1,13 @@
 name: Deploy to Lucidchart
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '**/*.drawio'
-      - '.github/workflows/deploy-lucidchart.yml'
-      - '.github/scripts/deploy-to-lucidchart.sh'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - '**/*.drawio'
+  #     - '.github/workflows/deploy-lucidchart.yml'
+  #     - '.github/scripts/deploy-to-lucidchart.sh'
   workflow_dispatch:
   workflow_call:
     inputs:
