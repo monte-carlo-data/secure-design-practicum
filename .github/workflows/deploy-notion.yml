@@ -1,12 +1,12 @@
 name: Deploy Markdown to Notion
 on:
-  # push:
-  #   branches: [ main ]
-  #   paths:
-  #     - '**/*.md'
-  #     - '.github/notion-mappings.txt'
-  #     - '.github/workflows/deploy-notion.yml'
-  #     - '.github/scripts/deploy-to-notion.sh'
+  push:
+    branches: [ main ]
+    paths:
+      - '**/*.md'
+      - '.github/notion-mappings.txt'
+      - '.github/workflows/deploy-notion.yml'
+      - '.github/scripts/deploy-to-notion.sh'
   workflow_dispatch:
     inputs:
       force_all_pages:
@@ -18,24 +18,23 @@ on:
 jobs:
   deploy-to-notion:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
       with:
         fetch-depth: 0  # Needed to diff across push ranges
-    
+
     - name: Setup Python
       uses: actions/setup-python@v6
       with:
         python-version: '3.9'
-    
+
     - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y jq curl
-    
+
     - name: Check for mapped markdown changes
       id: check_changes
       run: |
@@ -105,11 +104,11 @@ jobs:
           echo "changes=false" >> $GITHUB_OUTPUT
           echo "No mapped markdown files changed"
         fi
-    
+
     - name: Make script executable
       if: steps.check_changes.outputs.changes == 'true'
       run: chmod +x .github/scripts/deploy-to-notion.sh
-    
+
     - name: Deploy to Notion
       if: steps.check_changes.outputs.changes == 'true'
       env:
@@ -121,13 +120,13 @@ jobs:
         else
           .github/scripts/deploy-to-notion.sh --deploy-changed
         fi
-    
+
     - name: Skip deployment
       if: steps.check_changes.outputs.changes == 'false'
       run: |
         echo "No mapped markdown changes detected"
         echo "Skipping Notion deployment"
-    
+
     - name: Post deployment status
       if: always() && steps.check_changes.outputs.changes == 'true'
       run: |

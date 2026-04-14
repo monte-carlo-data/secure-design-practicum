@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Appends a draft row to reviews/TRACKING.md after a successful
+Appends a draft row to review-software/reviews/TRACKING.md after a successful
 SDD security review run, and writes a PR body to sdd_tracking_pr_body.md.
 """
 
@@ -10,7 +10,7 @@ import datetime
 import pathlib
 import sys
 
-TRACKING = pathlib.Path("reviews/TRACKING.md")
+TRACKING = pathlib.Path("review-software/reviews/TRACKING.md")
 REVIEW_JSON = pathlib.Path("sdd_review_output.json")
 PR_BODY_FILE = pathlib.Path(".github/scripts/sdd_tracking_pr_body.md")
 

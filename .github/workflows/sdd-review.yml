@@ -1,10 +1,10 @@
 name: SDD Security Review
 
 on:
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   paths:
-  #     - '.github/sdd-review-config.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/sdd-review-config.yml'
 
   workflow_dispatch:
     inputs:
@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       source_repos:
-        description: 'Source code repos (comma-separated, e.g. your-org/repo1,your-org/repo2)'
+        description: 'Source code repos (comma-separated, e.g. montecarlodata/repo1,montecarlodata/repo2)'
         required: false
         type: string
       source_file_patterns:
@@ -33,7 +33,7 @@ on:
         required: false
         type: string
       platform_context_path:
-        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
+        description: 'Path to platform context markdown (describes MC architecture patterns, multi-tenancy, IAM model)'
         required: false
         type: string
       team_questions_path:
@@ -108,24 +108,20 @@ jobs:
         SECURITY_CONCERNS_PATH: ${{ inputs.security_concerns_path || steps.config.outputs.security_concerns_path }}
         PLATFORM_CONTEXT_PATH: ${{ inputs.platform_context_path || steps.config.outputs.platform_context_path }}
         TEAM_QUESTIONS_PATH: ${{ inputs.team_questions_path || steps.config.outputs.team_questions_path }}
+        RISK_REGISTER_REPO: monte-carlo-data/mc-risk-register
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
         python .github/scripts/sdd_reviewer.py
 
     - name: Notify Security
-      if: >
-        success() &&
-        inputs.skip_notifications != true &&
-        steps.config.outputs.skip_notifications != 'true'
+      if: success() && inputs.skip_notifications != true && steps.config.outputs.skip_notifications != 'true'
       env:
         REVIEW_OUTPUT_FILE: sdd_review_output.json
         REVIEW_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
-        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
       run: |
         python3 .github/scripts/sdd_notify.py
 
@@ -149,7 +145,7 @@ jobs:
 
         BRANCH="sdd-tracking/$(date +%Y%m%d-%H%M%S)"
         git checkout -b "$BRANCH"
-        git add reviews/TRACKING.md 2>/dev/null || true
+        git add review-software/reviews/TRACKING.md
 
         if git diff --cached --quiet; then
           echo "No changes to commit"
