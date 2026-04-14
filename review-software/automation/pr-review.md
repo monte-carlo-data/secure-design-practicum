@@ -28,9 +28,9 @@ Both use the same NIST 800-30 risk model and produce the same structured output 
 
 | Trigger | How it works |
 |---------|-------------|
-| **Manual (workflow_dispatch)** | Go to Actions > PR Security Review > Run workflow in `mc-security`, paste the PR URL |
+| **Manual (workflow_dispatch)** | Go to Actions > PR Security Review > Run workflow in `security`, paste the PR URL |
 | **PR-triggered (config file)** | Add a `.github/pr-review-config.yml` file to your branch — the review runs automatically and posts results as a PR comment |
-| **Reusable workflow** | Call `pr-review-reusable.yml@main` from your own pipeline — no files to copy, scripts are fetched automatically from `mc-security` |
+| **Reusable workflow** | Call `pr-review-reusable.yml@main` from your own pipeline — no files to copy, scripts are fetched automatically from `security` |
 
 ## Quick Start
 
@@ -50,16 +50,16 @@ The workflow uses `github.token` (provided automatically by GitHub Actions) by d
 
 **Preferred — Reusable workflow (no files to copy):**
 
-Call the canonical workflow directly from your pipeline. Scripts are fetched automatically from `mc-security` at run time:
+Call the canonical workflow directly from your pipeline. Scripts are fetched automatically from `security` at run time:
 
 ```yaml
 jobs:
   pr-review:
-    uses: monte-carlo-data/mc-security/.github/workflows/pr-review-reusable.yml@main
+    uses: <organization>/security/.github/workflows/pr-review-reusable.yml@main
     with:
       pr-review-url: "https://github.com/org/repo/pull/42"
       # notion-sdd-url: "https://www.notion.so/..."               # optional
-      # context-repos: "monte-carlo-data/agent-hub"               # optional, comma-separated, max 3
+      # context-repos: "<organization>/hub"               # optional, comma-separated, max 3
       skip-notifications: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -70,16 +70,16 @@ jobs:
 
 **Alternative — Copy the workflow and script manually:**
 
-If you need to customise the workflow or run it in an environment without access to `mc-security`, copy these files:
+If you need to customise the workflow or run it in an environment without access to `security`, copy these files:
 
 ```
 your-repo/
   .github/
     workflows/
-      pr-review.yml          # from mc-security/.github/workflows/pr-review.yml
+      pr-review.yml          # from security/.github/workflows/pr-review.yml
     scripts/
-      pr_reviewer.py         # from mc-security/.github/scripts/pr_reviewer.py
-      sdd_notify.py          # from mc-security/.github/scripts/sdd_notify.py
+      pr_reviewer.py         # from security/.github/scripts/pr_reviewer.py
+      sdd_notify.py          # from security/.github/scripts/sdd_notify.py
 ```
 
 ### 3. Run the Review
@@ -109,7 +109,7 @@ pr_review_url: "https://github.com/org/repo/pull/42"
 notion_sdd_url: "https://www.notion.so/montecarlodata/Your-SDD-Page-abc123def456"
 
 # Optional — fetch code and markdown from related repos for additional context (max 3)
-# context_repos: "monte-carlo-data/agent-hub,monte-carlo-data/sdk"
+# context_repos: "<organization>/hub,<organization>/sdk"
 
 # Optional — suppress Slack/Linear notifications
 skip_notifications: false
@@ -165,7 +165,7 @@ Add these secrets to suppress or enable notifications:
 
 | Secret | Used for |
 |--------|----------|
-| `SDD_SLACK_WEBHOOK_URL` | Slack incoming webhook URL for [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) |
+| `SDD_SLACK_WEBHOOK_URL` | Slack incoming webhook URL for #team-security |
 | `LINEAR_API_KEY` | Linear API key with permission to create issues in the Security team |
 
 To suppress notifications for a specific run, check **Skip notifications** in the manual trigger or set `skip_notifications: true` in your config file.
@@ -177,11 +177,11 @@ For repositories that want to call the PR review from their own pipelines:
 ```yaml
 jobs:
   pr-review:
-    uses: monte-carlo-data/mc-security/.github/workflows/pr-review-reusable.yml@main
+    uses: <organization>/security/.github/workflows/pr-review-reusable.yml@main
     with:
       pr-review-url: "https://github.com/org/repo/pull/42"
       notion-sdd-url: "https://www.notion.so/..."               # optional
-      context-repos: "monte-carlo-data/agent-hub"               # optional, comma-separated, max 3
+      context-repos: "<organization>/agent-hub"               # optional, comma-separated, max 3
       skip-notifications: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -191,7 +191,7 @@ jobs:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
 ```
 
-The reusable workflow sparse-checks out the `mc-security` scripts rather than requiring you to copy them manually.
+The reusable workflow sparse-checks out the `security` scripts rather than requiring you to copy them manually.
 
 ## Troubleshooting
 

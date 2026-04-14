@@ -17,20 +17,20 @@ A GitHub Action that reviews System Design Documents (SDDs) from Notion and gene
 
 The review automatically assesses whether your design needs Security team involvement and surfaces a recommendation at the top of the output. Teams can also use this rubric to self-assess before running the action.
 
-The assessment uses Monte Carlo's [NIST 800-30 based risk model](https://www.notion.so/montecarlodata/Risk-Assessment-Process-1d6334399e65809b8152f79d1fdc2827): each design is scored on **Likelihood (1–5) × Impact (1–5)** = Risk Score (1–25). High (15–25) triggers Required, Medium (5–14) triggers Recommended, Low (1–4) is Not Required.
+The assessment uses Organization's [NIST 800-30 based risk model](https://www.notion.so/montecarlodata/Risk-Assessment-Process-1d6334399e65809b8152f79d1fdc2827): each design is scored on **Likelihood (1–5) × Impact (1–5)** = Risk Score (1–25). High (15–25) triggers Required, Medium (5–14) triggers Recommended, Low (1–4) is Not Required.
 
 ### Required — Security must be consulted before implementation proceeds
 
 - New external API surface (public endpoints, webhooks, OAuth flows, customer-facing APIs)
 - Data classification includes Critical items (credentials, encryption keys, customer PII, auth tokens)
 - Authentication or authorization model is being changed or extended
-- Customer-supplied code or queries execute on Monte Carlo infrastructure (templates, scripts, custom agents)
+- Customer-supplied code or queries execute on Organization infrastructure (templates, scripts, custom agents)
 - Cross-tenant data flows or changes to multi-tenancy isolation
 - New third-party integrations that receive, transmit, or store customer data
 - New encryption schemes, key management, or cryptographic primitives
 - Significant IAM, policy, or cross-account access changes
 
-**What to do:** Post the SDD link in [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) before starting implementation.
+**What to do:** Post the SDD link in #team-security before starting implementation.
 
 ### Recommended — Security should review but is not blocking
 
@@ -41,7 +41,7 @@ The assessment uses Monte Carlo's [NIST 800-30 based risk model](https://www.not
 - New dependency on an open-source library in a security-sensitive area (auth, crypto, serialization)
 - Design acknowledges security tradeoffs but defers decisions to implementation
 
-**What to do:** Consider posting in [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) for a lightweight async review.
+**What to do:** Consider posting in #team-security for a lightweight async review.
 
 ### Not Required — Proceed without Security team involvement
 
@@ -107,15 +107,15 @@ The workflow automatically uses `github.token` (provided by GitHub Actions) to f
 
 ### 3. Copy the Workflow and Script
 
-Copy these files from `mc-security` into your repository:
+Copy these files from `security` into your repository:
 
 ```
 your-repo/
   .github/
     workflows/
-      sdd-review.yml          # from mc-security/.github/workflows/sdd-review.yml
+      sdd-review.yml          # from security/.github/workflows/sdd-review.yml
     scripts/
-      sdd_reviewer.py         # from mc-security/.github/scripts/sdd_reviewer.py
+      sdd_reviewer.py         # from security/.github/scripts/sdd_reviewer.py
 ```
 
 ### 4. (Optional) Create Context Files
@@ -133,7 +133,7 @@ your-repo/
 **Platform context template** (`docs/platform_context.md`):
 
 ```markdown
-# Monte Carlo Platform Architecture
+# Organization Platform Architecture
 
 ## Multi-Tenancy Model
 - All customer data is scoped by AccountContext
@@ -286,7 +286,7 @@ Add `.github/sdd-review-config.yml` to your branch with the same fields as the m
 notion_sdd_url: "https://www.notion.so/montecarlodata/Your-SDD-Page-abc123def456"
 
 # All fields below are optional
-source_repos: "monte-carlo-data/monolith-django,monte-carlo-data/data-collector"
+source_repos: "<organization>/monolith,<organization>/collector"
 source_file_patterns: "src/auth/,models.py,config/"
 spec_markdown_path: "docs/spec.md"
 architecture_diagram_path: "docs/architecture.drawio"
@@ -363,7 +363,7 @@ Add these secrets to the repository running the workflow. Once they're set, noti
 
 | Secret | Used for |
 |--------|----------|
-| `SDD_SLACK_WEBHOOK_URL` | Slack incoming webhook URL for [#team-security](https://montecarlo.enterprise.slack.com/archives/C09BZKBNUK0) |
+| `SDD_SLACK_WEBHOOK_URL` | Slack incoming webhook URL for #team-security |
 | `LINEAR_API_KEY` | Linear API key with permission to create issues in the Security team |
 
 ### Suppressing notifications for a specific run
@@ -384,7 +384,7 @@ skip_notifications: true
 ```yaml
 jobs:
   sdd-review:
-    uses: monte-carlo-data/mc-security/.github/workflows/sdd-review-reusable.yml@main
+    uses: <organization>/security/.github/workflows/sdd-review-reusable.yml@main
     with:
       notion-sdd-url: "https://www.notion.so/..."
       skip-notifications: true
