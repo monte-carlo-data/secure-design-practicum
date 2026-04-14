@@ -81,7 +81,7 @@ Example:
 List the main repositories and what they contain:
 
 ```
-- your-org/backend: Main application server (Python/Django)
+- your-org/backend: Main application server (Python)
 - your-org/frontend: Web application (React/TypeScript)
 - your-org/infrastructure: Terraform modules for AWS
 - your-org/data-pipeline: Event processing workers

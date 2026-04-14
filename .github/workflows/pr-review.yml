@@ -24,7 +24,7 @@ on:
       context_repos:
         description: >
           Comma-separated list of org/repo slugs to fetch for additional context
-          (e.g. "your-org/shared-lib,your-org/sdk"). Max 3 repos.
+          (e.g. "<organization>/agent-hub,<organization>/sdk"). Max 3 repos.
         required: false
         type: string
 
@@ -100,9 +100,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         PR_REVIEW_URL: ${{ inputs.pr_review_url || steps.config.outputs.pr_review_url }}
         NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
-        CONTEXT_REPOS: ${{ inputs.context_repos || steps.config.outputs.context_repos }}
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
+        CONTEXT_REPOS: ${{ inputs.context_repos || steps.config.outputs.context_repos }}
       run: |
         python .github/scripts/pr_reviewer.py
 
@@ -117,8 +117,6 @@ jobs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
-        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
       run: |
         python3 .github/scripts/sdd_notify.py
 

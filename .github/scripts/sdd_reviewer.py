@@ -28,6 +28,9 @@ import base64
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
+import ai_config
+
 import anthropic
 import requests
 
@@ -386,7 +389,7 @@ class SourceCodeFetcher:
 
 
 class RiskRegisterClient:
-    """Fetches accepted risks from the risk register repo.
+    """Fetches accepted risks from the risk-register repo.
 
     The risk register is a JSON file in a private GitHub repo that tracks
     risks that have been formally evaluated. Risks with
@@ -405,7 +408,7 @@ class RiskRegisterClient:
                 "Risk Treatment": "Mitigate|Transfer|Accept",
                 "Treatment Status": "Done|In progress",
                 "Residual Risk Score": 15,
-                "Risk Owner": "owner@example.com",
+                "Risk Owner": "owner@organization.com",
                 "Approved At": "2025-04-24T02:27:52.594Z"
             }
         ],
@@ -413,7 +416,7 @@ class RiskRegisterClient:
     }
     """
 
-    DEFAULT_REPO = "your-org/risk-register"
+    DEFAULT_REPO = "<organization>/risk-register"
     DEFAULT_PATH = "risk-register.json"
 
     def __init__(self, github_token: str, repo: Optional[str] = None):
@@ -552,11 +555,11 @@ class SDDReviewer:
     ) -> str:
         """Build the Claude prompt for SDD review."""
 
-        prompt = """You are a senior security engineer reviewing a System Design Document (SDD) before engineering begins building. Your goal is to produce a thorough security analysis that helps the engineering team build securely from day one.
+        prompt = """You are a senior security engineer at Organization reviewing a System Design Document (SDD) before engineering begins building. Your goal is to produce a thorough security analysis that helps the engineering team build securely from day one.
 
 """
         if platform_context:
-            prompt += f"""## Platform Context
+            prompt += f"""## Organization Platform Context
 
 This is how our platform works. Use this as baseline knowledge when evaluating the SDD -- it describes our multi-tenancy model, IAM patterns, data pipeline architecture, and existing security controls. Reference specific platform patterns when they are relevant to the design.
 
@@ -623,7 +626,7 @@ The following risks have been formally evaluated and accepted by the business. D
 
 As part of your review, determine whether the Security team should be directly involved in reviewing this design.
 
-Uses a NIST 800-30 based risk model. Risk = Likelihood × Impact, scored 1–5 each:
+Organization uses a NIST 800-30 based risk model. Risk = Likelihood × Impact, scored 1–5 each:
 - **High risk** (score 15–25): Severe or catastrophic adverse effect on operations, customers, or data
 - **Medium risk** (score 5–14): Serious adverse effect; primary functions degraded but not lost
 - **Low risk** (score 1–4): Limited adverse effect; minimal damage or financial loss
@@ -634,7 +637,7 @@ Use this risk framing alongside the criteria below to determine involvement leve
 - New external API surface is introduced (new public endpoints, webhooks, OAuth flows, customer-facing APIs)
 - Data classification includes Critical items (credentials, encryption keys, customer PII, authentication tokens)
 - Authentication or authorization model is being changed or extended
-- Customer-supplied code or queries execute on your infrastructure (templates, scripts, custom connector runtimes, etc.)
+- Customer-supplied code or queries execute on Organization infrastructure (templates, scripts, custom agents, etc.)
 - Cross-tenant data flows or changes to the multi-tenancy isolation model
 - New third-party integrations that receive, transmit, or store customer data
 - New encryption schemes, key management, or cryptographic primitives
@@ -716,7 +719,7 @@ Generate two representations of the system architecture described in the SDD:
 - Show system components, data flows, trust boundaries, and external integrations
 - Use different colors to indicate sensitivity: red for critical trust boundaries, orange for high-risk data flows, blue for standard components, green for security controls
 - Label all connections with the protocol/mechanism (e.g. "TLS", "JWT", "IAM role", "Kinesis")
-- Group components by trust zone (e.g. "Customer VPC", "MC Platform", "External Services")
+- Group components by trust zone (e.g. "Customer VPC", "Platform", "External Services")
 - The XML must be a complete, self-contained draw.io file (wrapped in <mxfile> tags)
 
 **b) ASCII architecture diagram:**
@@ -738,7 +741,7 @@ Format your entire response as JSON:
     "likelihood": 3,
     "impact": 4,
     "risk_score": 12,
-    "intake_note": "What the team should do next — informational only, not a blocker (e.g. post in your security channel with the SDD link, or proceed without security review)"
+    "intake_note": "What the team should do next — informational only, not a blocker (e.g. post in #team-security with the SDD link, or proceed without security review)"
   },
   "questions": [
     {
@@ -789,7 +792,7 @@ Format your entire response as JSON:
         """Send prompt to Claude and parse the response."""
         try:
             response = self.anthropic_client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=ai_config.PRIMARY_MODEL,
                 max_tokens=16000,
                 temperature=0.2,
                 messages=[{"role": "user", "content": prompt}],
@@ -841,8 +844,8 @@ Format your entire response as JSON:
         involvement = result.get("security_involvement", {})
 
         involvement_banners = {
-            "Required": "> **SECURITY REVIEW: REQUIRED** — Contact your security team before implementation proceeds.",
-            "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider a lightweight async review with your security team.",
+            "Required": "> **SECURITY REVIEW: REQUIRED** — Post this SDD in #team-security before implementation proceeds.",
+            "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider posting this SDD in #team-security for a lightweight review.",
             "Not Required": "> **SECURITY REVIEW: NOT REQUIRED** — This design does not meet the criteria for Security team involvement.",
         }
 

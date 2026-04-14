@@ -3,7 +3,7 @@
 Security Review — notification step.
 
 Reads the review output JSON and automatically:
-  1. Posts a Slack message to your security channel when SLACK_WEBHOOK_URL is set
+  1. Posts a Slack message to #team-security when SLACK_WEBHOOK_URL is set
      and involvement is Required or Recommended.
   2. Creates an unassigned Linear triage ticket in the Security team when
      LINEAR_API_KEY is set and involvement is Required.
@@ -28,7 +28,7 @@ import requests
 
 REVIEW_JSON = os.getenv("REVIEW_OUTPUT_FILE", "sdd_review_output.json")
 
-LINEAR_TEAM_ID = os.getenv("LINEAR_TEAM_ID", "")  # Set LINEAR_TEAM_ID env var or repo secret
+LINEAR_TEAM_ID = os.getenv("LINEAR_TEAM_ID", "")           # Set LINEAR_TEAM_ID env var or repo secret
 LINEAR_TRIAGE_STATUS_ID = os.getenv("LINEAR_TRIAGE_STATUS_ID", "")  # Set LINEAR_TRIAGE_STATUS_ID env var or repo secret
 LINEAR_API_URL = "https://api.linear.app/graphql"
 

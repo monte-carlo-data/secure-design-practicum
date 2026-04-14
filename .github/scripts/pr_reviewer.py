@@ -19,9 +19,9 @@ Env vars:
   NOTION_TOKEN         — required only when NOTION_SDD_URL is set
   REPO_FULL_NAME       — set by GitHub Actions for PR comment posting
   PR_NUMBER            — set by GitHub Actions for PR comment posting
-  RISK_REGISTER_REPO   — optional; override default your-org/risk-register
+  RISK_REGISTER_REPO   — optional; override default <organization>/risk-register
   CONTEXT_REPOS        — optional; comma-separated list of org/repo slugs to fetch for
-                         additional context (e.g. "your-org/shared-lib,your-org/sdk")
+                         additional context (e.g. "<organization>/agent-hub,<organization>/sdk")
                          Max 3 repos. Fetches code and markdown files up to 6KB per repo.
 """
 
@@ -32,6 +32,9 @@ import json
 import base64
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
+import ai_config
 
 import anthropic
 import requests
@@ -380,9 +383,9 @@ def build_context_repos_section(repo_slugs: List[str], token: str) -> Optional[s
 
 
 class RiskRegisterClient:
-    """Fetches accepted risks from the risk register repo."""
+    """Fetches accepted risks from the risk-register repo."""
 
-    DEFAULT_REPO = "your-org/risk-register"
+    DEFAULT_REPO = "<organization>/risk-register"
     DEFAULT_PATH = "risk-register.json"
 
     def __init__(self, github_token: str, repo: Optional[str] = None):
@@ -591,7 +594,7 @@ def build_prompt(
     additions = pr_metadata.get("additions", 0)
     deletions = pr_metadata.get("deletions", 0)
 
-    prompt = f"""You are a senior security engineer performing a code-level security review of a GitHub pull request. Your goal is to identify what NEW security risk the code changes introduce — focus on what is different, not on re-auditing the entire codebase.
+    prompt = f"""You are a senior security engineer at Organization performing a code-level security review of a GitHub pull request. Your goal is to identify what NEW security risk the code changes introduce — focus on what is different, not on re-auditing the entire codebase.
 
 ## PR Details
 
@@ -648,7 +651,7 @@ The following shows the most security-relevant changed files. Files are prioriti
 
 As part of your review, determine whether the Security team should be directly involved.
 
-Uses a NIST 800-30 based risk model. Risk = Likelihood x Impact, scored 1-5 each:
+Organization uses a NIST 800-30 based risk model. Risk = Likelihood x Impact, scored 1-5 each:
 - **High risk** (score 15-25): Severe or catastrophic adverse effect on operations, customers, or data
 - **Medium risk** (score 5-14): Serious adverse effect; primary functions degraded but not lost
 - **Low risk** (score 1-4): Limited adverse effect; minimal damage or financial loss
@@ -657,7 +660,7 @@ Uses a NIST 800-30 based risk model. Risk = Likelihood x Impact, scored 1-5 each
 - New external API surface introduced (endpoints, webhooks, OAuth flows, customer-facing APIs)
 - Data classification includes Critical items (credentials, encryption keys, customer PII, auth tokens)
 - Authentication or authorization model is being changed or extended
-- Customer-supplied code or queries execute on your infrastructure
+- Customer-supplied code or queries execute on Organization infrastructure
 - Cross-tenant data flows or changes to multi-tenancy isolation
 - New third-party integrations that receive, transmit, or store customer data
 - New encryption schemes, key management, or cryptographic primitives
@@ -789,7 +792,7 @@ def call_anthropic(prompt: str) -> Dict[str, Any]:
     prompt = prompt.encode("utf-8", errors="replace").decode("utf-8")
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=ai_config.PRIMARY_MODEL,
             max_tokens=16000,
             temperature=0.2,
             messages=[{"role": "user", "content": prompt}],
@@ -851,8 +854,8 @@ def format_markdown(result: Dict[str, Any], pr_url: str) -> str:
     involvement = result.get("security_involvement", {})
 
     involvement_banners = {
-        "Required": "> **SECURITY REVIEW: REQUIRED** — Contact your security team before merging.",
-        "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider a lightweight async review with your security team.",
+        "Required": "> **SECURITY REVIEW: REQUIRED** — Post this PR in #team-security before merging.",
+        "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider posting this PR in #team-security for a lightweight async review.",
         "Not Required": "> **SECURITY REVIEW: NOT REQUIRED** — This PR does not meet the criteria for Security team involvement.",
     }
 

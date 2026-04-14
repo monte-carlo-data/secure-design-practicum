@@ -1,10 +1,9 @@
 ---
 name: pr-review
 description: >
-  Interactive PR security review workflow. Use this skill whenever the user
-  asks to review a PR, run a security review on a pull request, or check whether
-  a PR needs security involvement — even if phrased casually (e.g. "review this PR",
-  "can you security review this pull request", "run pr-review on this").
+  Security review for GitHub pull requests. Use when: "review this PR", "security
+  review this pull request", "run pr-review on this". Accepts a GitHub PR URL.
+context: fork
 ---
 
 # PR Security Review Workflow
@@ -14,7 +13,7 @@ using the `pr-review.yml` GitHub Action. It helps gather the required inputs, ex
 outputs, and walks through the review results.
 
 The full process documentation is in:
-`automation/pr-review.md`
+`review-software/automation/pr-review.md`
 
 ---
 
@@ -42,8 +41,8 @@ Ask the user:
 Then ask:
 
 > "Are there any related repos the reviewer should pull context from? Paste
-> comma-separated org/repo slugs (e.g. `your-org/shared-lib`) or press
-> Enter to skip. Max 3 repos — code and markdown files will be fetched."
+> comma-separated org/repo slugs (e.g. `my-org/my-repo`) or press Enter to skip.
+> Max 3 repos — code and markdown files will be fetched."
 
 Then ask:
 
@@ -67,7 +66,6 @@ Ready to run PR security review:
 Ask the user how they want to run it:
 
 > "How would you like to trigger the review?
->
 > - [M] Manual — run `workflow_dispatch` in GitHub Actions now
 > - [C] Config file — add `.github/pr-review-config.yml` to the PR branch
 > - [R] Reusable workflow — show the `workflow_call` snippet to add to your pipeline"
@@ -76,7 +74,7 @@ Ask the user how they want to run it:
 
 Direct the user to:
 
-1. Go to **Actions > PR Security Review > Run workflow** in their repo
+1. Go to **Actions > PR Security Review > Run workflow** in the security repo
 2. Fill in:
    - **GitHub PR URL**: `<pr_url>`
    - **Notion SDD URL**: `<notion_sdd_url>` (leave blank if none)
@@ -97,7 +95,7 @@ pr_review_url: "<pr_url>"
 # notion_sdd_url: "https://www.notion.so/..."
 
 # Optional — fetch code and markdown from related repos for additional context (max 3)
-# context_repos: "your-org/shared-lib,your-org/sdk"
+# context_repos: "<org>/repo-a,<org>/repo-b"
 
 # Optional — suppress Slack/Linear notifications for this run
 skip_notifications: false
@@ -113,11 +111,11 @@ Show the caller snippet:
 ```yaml
 jobs:
   pr-review:
-    uses: monte-carlo-data/secure-design-practicum/.github/workflows/pr-review-reusable.yml@main
+    uses: <org>/security/.github/workflows/pr-review-reusable.yml@main
     with:
       pr-review-url: "<pr_url>"
       # notion-sdd-url: "https://www.notion.so/..."   # optional
-      # context-repos: "your-org/shared-lib"          # optional, comma-separated, max 3
+      # context-repos: "<org>/my-repo"                # optional, comma-separated, max 3
       skip-notifications: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -130,7 +128,7 @@ jobs:
 ```
 
 Explain: "Add this to your repo's workflow. It references the canonical script from
-`secure-design-practicum` directly — no need to copy files."
+the security repo directly — no need to copy files."
 
 ---
 
@@ -139,7 +137,6 @@ Explain: "Add this to your repo's workflow. It references the canonical script f
 Ask the user:
 
 > "Does the repo running this workflow have the required secrets configured?
->
 > - `ANTHROPIC_API_KEY` — required
 > - `NOTION_TOKEN` — required only if providing a Notion SDD URL
 > - `SDD_SLACK_WEBHOOK_URL` — optional (enables Slack notifications)
@@ -163,15 +160,14 @@ When the user shares results, walk through:
 Explain what the recommendation means and what action is expected:
 
 | Recommendation | Meaning | Next step |
-| --- | --- | --- |
-| **Required** | Security team must be consulted before this PR merges | Post in your security channel before merging |
-| **Recommended** | Security team should review but is not blocking | Consider posting in your security channel for async review |
+|---|---|---|
+| **Required** | Security team must be consulted before this PR merges | Post in #team-security before merging |
+| **Recommended** | Security team should review but is not blocking | Consider posting in #team-security for async review |
 | **Not Required** | No Security team involvement needed | Proceed — the security questions are still worth addressing in review |
 
 ### Security questions
 
 For each question, help the user understand:
-
 - What the specific risk is in their code
 - Which file/function it applies to (`affected_file` / `affected_line`)
 - What the exploit scenario means in practice — who can trigger it, what they gain
@@ -183,8 +179,7 @@ Note that questions below 70% confidence are suppressed from the PR comment enti
 ### Notifications
 
 If notifications fired (Slack message or Linear ticket), confirm the user knows:
-
-- The Slack message went to the configured security channel
+- The Slack message went to **#team-security**
 - A Linear ticket was created in the Security team's Triage queue (Required only)
 - They should respond to or monitor those channels for follow-up
 
@@ -203,7 +198,7 @@ If the user answers **Y**:
 
 - Ask for a slug if one hasn't been established (derive from the PR title: lowercase, spaces to underscores, strip special chars).
 
-- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it. If the file contains entries from prior PR reviews for the same slug, note that — new questions from this PR will be merged in (deduplicating by question title).
+- Check whether `review-software/reviews/<slug>/decisions.md` already exists. If it does, load it. If the file contains entries from prior PR reviews for the same slug, note that — new questions from this PR will be merged in (deduplicating by question title).
 
 - For each question in the `## Follow-Up Questions` section of the review, present:
 
@@ -253,7 +248,7 @@ Options:
 
 - Show the full `decisions.md` content and ask for confirmation before writing:
 
-> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 - On confirmation, write the file. Report the path to the user.
 
@@ -285,4 +280,6 @@ title and body — the reviewer uses both as input.
   part of the SDD design review log.
 - If the PR is already merged or closed, the review can still be run retroactively —
   the diff remains accessible via the GitHub API.
-- For setup details, refer to `automation/pr-review.md`.
+- For setup details, refer to `review-software/automation/pr-review.md`.
+- If the PR involves deploying or hosting an internal tool, delegate to the `common` agent
+  to route it correctly.

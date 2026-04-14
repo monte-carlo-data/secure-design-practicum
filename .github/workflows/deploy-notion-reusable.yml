@@ -1,9 +1,9 @@
 name: Reusable Notion Deployment
 
 on:
-  # push:
-  #   paths:
-  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  push:
+    paths:
+      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       changed-files:
@@ -26,7 +26,7 @@ on:
         description: 'Notion integration token'
         required: true
       SOURCE_REPO_TOKEN:
-        description: 'GitHub token with access to monte-carlo-data/secure-design-practicum (for fetching deploy scripts)'
+        description: 'GitHub token with access to <organization>/security (for fetching deploy scripts)'
         required: false
     outputs:
       deployed-count:
@@ -39,8 +39,6 @@ on:
 jobs:
   deploy-to-notion:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       deployed-count: ${{ steps.deploy.outputs.deployed-count }}
       deploy-status: ${{ steps.status.outputs.result }}
@@ -51,12 +49,12 @@ jobs:
       with:
         fetch-depth: 2
 
-    - name: Checkout security-practicum scripts
+    - name: Checkout security scripts
       uses: actions/checkout@v6
       with:
-        repository: monte-carlo-data/secure-design-practicum
+        repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
-        path: .security-practicum
+        path: .security
         sparse-checkout: |
           .github/scripts/deploy-to-notion.sh
         sparse-checkout-cone-mode: false
@@ -119,7 +117,7 @@ jobs:
 
     - name: Make script executable
       if: steps.changes.outputs.changes == 'true'
-      run: chmod +x .security-practicum/.github/scripts/deploy-to-notion.sh
+      run: chmod +x .security/.github/scripts/deploy-to-notion.sh
 
     - name: Deploy to Notion
       id: deploy
@@ -130,9 +128,9 @@ jobs:
         MAPPINGS_FILE: ${{ inputs.mappings-file }}
       run: |
         if [ "${{ inputs.force-deploy }}" = "true" ] || [ "$CHANGED_FILES" = "all" ]; then
-          .security-practicum/.github/scripts/deploy-to-notion.sh --force
+          .security/.github/scripts/deploy-to-notion.sh --force
         else
-          .security-practicum/.github/scripts/deploy-to-notion.sh --deploy-changed
+          .security/.github/scripts/deploy-to-notion.sh --deploy-changed
         fi
         echo "deployed-count=$(echo "$CHANGED_FILES" | tr ',' '\n' | wc -l | xargs)" >> $GITHUB_OUTPUT
 

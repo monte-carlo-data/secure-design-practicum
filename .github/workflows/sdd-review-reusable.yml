@@ -1,9 +1,9 @@
 name: Reusable SDD Security Review
 
 on:
-  # push:
-  #   paths:
-  #     - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
+  push:
+    paths:
+      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       notion-sdd-url:
@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       source-repos:
-        description: 'Source code repos (comma-separated, e.g. your-org/repo1,your-org/repo2)'
+        description: 'Source code repos (comma-separated, e.g. <organization>/repo1,<organization>/repo2)'
         required: false
         type: string
         default: ''
@@ -36,7 +36,7 @@ on:
         type: string
         default: ''
       platform-context-path:
-        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
+        description: 'Path to platform context markdown (describes MC architecture patterns, multi-tenancy, IAM model)'
         required: false
         type: string
         default: ''
@@ -61,16 +61,10 @@ on:
         description: 'GitHub token with access to source repos (falls back to github.token)'
         required: false
       SDD_SLACK_WEBHOOK_URL:
-        description: 'Slack incoming webhook URL for your security channel — notifications fire automatically when set'
+        description: 'Slack incoming webhook URL for #team-security — notifications fire automatically when set'
         required: false
       LINEAR_API_KEY:
         description: 'Linear API key for the Security team — triage tickets fire automatically when set and involvement is Required'
-        required: false
-      LINEAR_TEAM_ID:
-        description: 'Linear team UUID for triage ticket creation'
-        required: false
-      LINEAR_TRIAGE_STATUS_ID:
-        description: 'Linear status UUID for the triage state'
         required: false
     outputs:
       review-status:
@@ -93,12 +87,12 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Checkout security-practicum scripts
+    - name: Checkout security scripts
       uses: actions/checkout@v6
       with:
-        repository: monte-carlo-data/secure-design-practicum
+        repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
-        path: .security-practicum
+        path: .security
         sparse-checkout: |
           .github/scripts/sdd_reviewer.py
           .github/scripts/sdd_notify.py
@@ -126,10 +120,11 @@ jobs:
         SECURITY_CONCERNS_PATH: ${{ inputs.security-concerns-path }}
         PLATFORM_CONTEXT_PATH: ${{ inputs.platform-context-path }}
         TEAM_QUESTIONS_PATH: ${{ inputs.team-questions-path }}
+        RISK_REGISTER_REPO: <organization>/risk-register
         REPO_FULL_NAME: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        python .security-practicum/.github/scripts/sdd_reviewer.py
+        python .security/.github/scripts/sdd_reviewer.py
 
     - name: Notify Security
       if: success() && inputs.skip-notifications != true
@@ -139,10 +134,8 @@ jobs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
-        LINEAR_TRIAGE_STATUS_ID: ${{ secrets.LINEAR_TRIAGE_STATUS_ID }}
       run: |
-        python3 .security-practicum/.github/scripts/sdd_notify.py
+        python3 .security/.github/scripts/sdd_notify.py
 
     - name: Set review status
       id: review-status

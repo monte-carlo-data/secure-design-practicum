@@ -1,29 +1,28 @@
 ---
 name: sdd-review
 description: >
-  Interactive SDD security review workflow. Use this skill whenever the user
-  asks to review SDDs, run the SDD review workflow, triage pending SDDs, or
-  check which design documents need security review — even if phrased casually
-  (e.g. "let's review some SDDs", "what SDDs are pending?", "run the sdd review").
+  Security review workflow for Notion design documents (SDDs). Manages the review
+  queue and TRACKING.md. Use when: "let's review some SDDs", "what SDDs are pending?",
+  "run the sdd review". Accepts a Notion URL.
+context: fork
 ---
 
 # SDD Security Review Workflow
 
-This skill automates the SDD review process: surfacing pending reviews,
-applying involvement criteria, guiding through each review interactively,
-updating the tracking log, and optionally notifying the security team via
-Slack or Linear.
+This skill automates the Security team's SDD review process: surfacing pending reviews,
+applying involvement criteria, guiding through each review interactively, updating the
+tracking log, and optionally notifying Security via Slack or Linear.
 
-The canonical tracking file is: `reviews/TRACKING.md`
+The canonical tracking file is: `review-software/reviews/TRACKING.md`
 
 The involvement criteria and notification behavior are defined in:
-`automation/sdd-review.md`
+`review-software/automation/sdd-review.md`
 
 The review guides that drive analysis and question generation:
 
-- `guides/quick-security-review.md` — "Security Steve" 10-question framework
-- `guides/architecture-walkthrough-questions.md` — 33 structured questions by domain
-- `guides/self-service-checklist.md` — 7-category validation checklist
+- `review-software/guides/Quick Security Review.md` — "Security Steve" 10-question framework
+- `review-software/guides/Architecture Walkthrough Questions.md` — 33 structured questions by domain
+- `review-software/guides/Self-Service Security Checklist.md` — 7-category validation checklist
 
 ---
 
@@ -51,9 +50,11 @@ Do not load TRACKING.md or show the queue before the user has indicated they wan
 
 ## Step 1 — Load context and tracking file
 
+**Load all files in parallel** — they are independent and can be read concurrently:
+
 Read the following files from the local filesystem:
 
-**Tracking log:** `reviews/TRACKING.md`
+**Tracking log:** `review-software/reviews/TRACKING.md`
 
 Parse the Review Log table. For each row capture:
 
@@ -67,15 +68,17 @@ Parse the Review Log table. For each row capture:
 - Linear Ticket
 - Review File
 
-**Platform context (optional):** `guides/platform-context-template.md`
+**Platform context:** `review-software/guides/platform_context.md`
 
-If the user has a platform context doc available (a standing document describing their
-platform architecture, multi-tenancy model, IAM patterns, data pipelines, and existing
-security controls), load it into memory. It is used in Step 4 to make analysis specific
-to the team's architecture rather than generic.
+This document describes the platform's architecture: multi-tenancy model, IAM and
+authentication patterns, data pipeline, integration gateway, existing security controls,
+and key repositories.
 
-If no platform context doc exists, ask the user if they have one to provide, or proceed
-without it.
+Load this context into memory. It is used in Step 4 to make analysis specific to this
+platform's architecture — for example, flagging when a design bypasses tenant scoping,
+introduces new data streams without tenant isolation, or stores secrets improperly.
+Without this context the review will be generic rather than grounded in the actual
+architecture.
 
 ---
 
@@ -143,7 +146,7 @@ Score **Likelihood (1–5)** × **Impact (1–5)** = Risk Score (1–25).
 - New external API surface (public endpoints, webhooks, OAuth flows, customer-facing APIs)
 - Data classification includes Critical items (credentials, encryption keys, customer PII, auth tokens)
 - Authentication or authorization model is being changed or extended
-- Customer-supplied code or queries execute on your infrastructure
+- Customer-supplied code or queries execute on internal infrastructure
 - Cross-tenant data flows or changes to multi-tenancy isolation
 - New third-party integrations that receive, transmit, or store customer data
 - New encryption schemes, key management, or cryptographic primitives
@@ -187,12 +190,12 @@ that are relevant to this design — skip domains where nothing applies.
 
 #### Lens 1 — Quick Security Review (10 questions)
 
-Apply the "Security Steve" framework from `guides/quick-security-review.md`.
+Apply the "Security Steve" framework from `review-software/guides/Quick Security Review.md`.
 For each of the 10 questions, answer it based on the SDD content:
 
-1. What does this feature do, and who uses it? (persona, internal vs. customer-facing)
+1. What does this feature do, and who uses it? (internal vs. customer-facing)
 2. What data does it touch? (types, sensitivity, source, destination)
-3. How do users authenticate? (SSO, API keys, service accounts, credential storage)
+3. How do users authenticate? (Okta SSO, API keys, service accounts, credential storage)
 4. What can different users do? (permission levels, cross-user data access, enforcement)
 5. What external services does this integrate with? (APIs, data sent, credential management)
 6. Where are secrets stored? (code, config, secret manager, rotation capability)
@@ -205,7 +208,7 @@ For each question: if the SDD answers it clearly, note that. If it's silent or a
 
 #### Lens 2 — Architecture Walkthrough domains
 
-Apply the domain structure from `guides/architecture-walkthrough-questions.md`.
+Apply the domain structure from `review-software/guides/Architecture Walkthrough Questions.md`.
 Work through the relevant sections for this SDD:
 
 - **System overview** — main components, tech stack, where it runs, deployment model
@@ -223,7 +226,7 @@ For each domain: summarize what the SDD says, and call out gaps or concerns.
 
 #### Lens 3 — Self-Service Checklist gaps
 
-Apply the 7-category checklist from `guides/self-service-checklist.md`.
+Apply the 7-category checklist from `review-software/guides/Self-Service Security Checklist.md`.
 Identify which items the SDD implies are handled vs. which appear unaddressed:
 
 1. Authentication & Access Control
@@ -280,7 +283,7 @@ If the user answers **N**, skip to Step 5. No `decisions.md` is created at this 
 
 If the user answers **Y**:
 
-- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it and display the prior decisions so the user can see what was previously recorded before proceeding.
+- Check whether `review-software/reviews/<slug>/decisions.md` already exists. If it does, load it and display the prior decisions so the user can see what was previously recorded before proceeding.
 
 - For each question in the `## Follow-Up Questions` section of the review, present:
 
@@ -329,7 +332,7 @@ Options:
 
 - Show the full `decisions.md` content and ask for confirmation before writing:
 
-> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 - On confirmation, write the file. Report the path to the user.
 
@@ -346,7 +349,7 @@ Ask the user:
 If yes:
 
 1. Derive a slug from the SDD name (lowercase, spaces to underscores, strip special chars).
-2. Write the review output to `reviews/<slug>/review.md`.
+2. Write the review output to `review-software/reviews/<slug>/review.md`.
 
 Use this structure for the file:
 
@@ -396,10 +399,10 @@ Ask for:
 - **Reviewer** (default: the current user — ask if unknown)
 - **Review date** (default: today's date)
 - **Risk rating** (High / Medium / Low — derived from the score, but user can override)
-- **Linear ticket** (optional — paste a ticket link if one exists)
+- **Linear ticket** (optional — paste a SEC-XXXX link if one exists)
 - **Review file path** — pre-filled if a file was written in Part A, otherwise ask
 
-Then update the row in `reviews/TRACKING.md`:
+Then update the row in `review-software/reviews/TRACKING.md`:
 
 - Set Status → **Reviewed**
 - Fill in Risk Rating, Sec Relevant (Yes/No), Reviewer, Review Date, Linear Ticket, Review File
@@ -415,8 +418,8 @@ After writing the review file and updating TRACKING.md, ask the user:
 If yes:
 
 1. Stage both files:
-   - `reviews/<slug>/review.md` (if written)
-   - `reviews/TRACKING.md`
+   - `review-software/reviews/<slug>/review.md` (if written)
+   - `review-software/reviews/TRACKING.md`
 2. Propose a commit message: `sec: add security review for <SDD Name>`
 3. Show the user the exact files being committed and the message, and confirm before running.
 4. Run `git add <files> && git commit -m "<message>" && git push`.
@@ -442,16 +445,18 @@ Use the Lucid MCP to import the diagram if the user provides it.
 If the involvement level is **Required** or **Recommended**, ask:
 
 > "Would you like to notify the Security team?
->
-> - [S] Post to Slack
+> - [S] Post to Slack #team-security
 > - [L] Create a Linear triage ticket (Required only)
 > - [B] Both
 > - [N] Skip notifications"
 
 ### Slack notification
 
-Post to your security channel using the Slack MCP tool. Ask the user for the channel name
-if not already known.
+Post to **#team-security** using the `mcp__slack__slack_post_message` tool (or equivalent
+send tool available in the Slack MCP).
+
+If the Slack MCP is not authenticated (tool returns an auth error), tell the user and provide
+the message text to copy-paste manually into #team-security.
 
 Message format:
 
@@ -473,7 +478,7 @@ Color code: red for Required, yellow for Recommended.
 
 ### Linear triage ticket
 
-Create a ticket using the Linear MCP in your Security team's Triage queue (only for Required):
+Create a ticket using `mcp__linear__save_issue` in the **Security** team's **Triage** queue (only for Required):
 
 - **Title**: `SDD Review: <SDD Title>`
 - **Status**: Triage
@@ -532,7 +537,10 @@ Session summary:
 - Never mark an SDD as Reviewed without explicit user confirmation.
 - If the user says "skip" at any point, move to the next SDD without modifying the tracking file.
 - Sec Relevant column should be set to "Yes" if involvement is Required or Recommended, "No" if Not Required.
-- The review file path convention is `reviews/<slug>/review.md`.
+- The review file path convention is `./review-software/reviews/<slug>/review.md`.
+- Slack notifications use `mcp__slack__slack_post_message`. If auth fails, provide copy-paste message text and direct the user to #team-security.
+- If the SDD describes an internal tool that needs hosting, delegate to the `common` agent
+  to route it correctly.
 
 ## Exception: SDD not in tracking file
 

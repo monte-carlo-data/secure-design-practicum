@@ -169,15 +169,16 @@ def parse_inline_formatting(text):
     rich_text = []
 
     # Pattern to match [text](url), **bold**, *italic*, and \`code\`
-    pattern = r'(\[.*?\]\(.*?\)|\*\*.*?\*\*|\`.*?\`|\*.*?\*)'
+    # URL part allows balanced parentheses (e.g. file names with parens)
+    pattern = r'(\[.*?\]\((?:[^()]*|\([^()]*\))*\)|\*\*.*?\*\*|\`.*?\`|\*.*?\*)'
     parts = re.split(pattern, text)
 
     for part in parts:
         if not part:
             continue
 
-        # Markdown links [text](url)
-        link_match = re.match(r'^\[(.*?)\]\((.*?)\)$', part)
+        # Markdown links [text](url) — URL may contain balanced parens
+        link_match = re.match(r'^\[(.*?)\]\(((?:[^()]*|\([^()]*\))*)\)$', part)
         if link_match:
             link_text = link_match.group(1)
             link_url = link_match.group(2)
@@ -345,8 +346,8 @@ def markdown_to_notion_blocks(markdown_content):
                     'rich_text': parse_inline_formatting(line[4:])
                 }
             })
-        # Table detection
-        elif '|' in line and i + 1 < len(lines) and '---' in lines[i + 1]:
+        # Table detection — separator row may use -- or --- with optional pipes/spaces
+        elif '|' in line and i + 1 < len(lines) and re.match(r'^\|?[\s\-|]+\|', lines[i + 1].strip()):
             list_stack = []
             # Found table header, process entire table
             table_rows = []
@@ -551,24 +552,35 @@ update_notion_page() {
     local blocks_file=$(convert_markdown_to_notion_blocks "$markdown_file")
     
     log "Clearing existing page content..."
-    # First, get existing blocks to delete them
-    local existing_blocks=$(curl -s \
-        -H "Authorization: Bearer $NOTION_TOKEN" \
-        -H "Notion-Version: 2022-06-28" \
-        -H "Content-Type: application/json" \
-        "$NOTION_API_URL/blocks/$notion_page_id/children" | jq -r '.results[].id' 2>/dev/null)
-    
-    # Delete existing blocks
-    if [ -n "$existing_blocks" ]; then
-        echo "$existing_blocks" | while read -r block_id; do
-            if [ -n "$block_id" ] && [ "$block_id" != "null" ]; then
-                curl -s -X DELETE \
-                    -H "Authorization: Bearer $NOTION_TOKEN" \
-                    -H "Notion-Version: 2022-06-28" \
-                    "$NOTION_API_URL/blocks/$block_id" >/dev/null
-            fi
-        done
-    fi
+    # Paginate through all existing blocks and delete them
+    local cursor=""
+    while true; do
+        local url="$NOTION_API_URL/blocks/$notion_page_id/children?page_size=100"
+        [ -n "$cursor" ] && url="${url}&start_cursor=${cursor}"
+        local page_response
+        page_response=$(curl -s \
+            -H "Authorization: Bearer $NOTION_TOKEN" \
+            -H "Notion-Version: 2022-06-28" \
+            -H "Content-Type: application/json" \
+            "$url")
+        local existing_blocks
+        existing_blocks=$(echo "$page_response" | jq -r '.results[].id' 2>/dev/null)
+        if [ -n "$existing_blocks" ]; then
+            echo "$existing_blocks" | while read -r block_id; do
+                if [ -n "$block_id" ] && [ "$block_id" != "null" ]; then
+                    curl -s -X DELETE \
+                        -H "Authorization: Bearer $NOTION_TOKEN" \
+                        -H "Notion-Version: 2022-06-28" \
+                        "$NOTION_API_URL/blocks/$block_id" >/dev/null
+                fi
+            done
+        fi
+        local has_more
+        has_more=$(echo "$page_response" | jq -r '.has_more // false' 2>/dev/null)
+        [ "$has_more" != "true" ] && break
+        cursor=$(echo "$page_response" | jq -r '.next_cursor // empty' 2>/dev/null)
+        [ -z "$cursor" ] && break
+    done
     
     log "Uploading new content to Notion..."
     if [ -f "$blocks_file" ]; then

@@ -1,11 +1,9 @@
 ---
 name: decision
 description: >
-  Interactive decision capture workflow for security reviews. Use this
-  skill whenever a security engineer wants to record or update decisions for security
-  questions in an existing review — even if phrased casually (e.g. "record decisions
-  for evalabilly", "update decisions on this review", "/decision evalabilly").
-  Accepts a review slug or path as input.
+  Interactive decision capture for security reviews. Records/updates
+  decisions on security questions. Use when: "record decisions for <slug>",
+  "update decisions on this review", "/decision <slug>". Accepts a review slug or path.
 ---
 
 # Decision Capture Workflow
@@ -14,7 +12,7 @@ This skill loads an existing `decisions.md` from a review directory, presents un
 questions for disposition, and writes the updated file. It is the primary way to record
 or update decisions after a review has been completed.
 
-Decisions live at `reviews/<slug>/decisions.md`. They are separate from
+Decisions live at `review-software/reviews/<slug>/decisions.md`. They are separate from
 the review narrative (`review.md` or `pr-review.md`) so they can be updated independently
 as engineers work through findings.
 
@@ -23,17 +21,17 @@ as engineers work through findings.
 ## Step 0 — Identify the review
 
 Check whether the user provided a slug or path at invocation
-(e.g. `/decision evalabilly` or `/decision reviews/evalabilly`).
+(e.g. `/decision evalabilly` or `/decision review-software/reviews/evalabilly`).
 
 **If a slug or path was provided:** resolve it to a review directory and proceed to Step 1.
 
-- If the input is a bare slug (no `/`), look for `reviews/<slug>/`.
+- If the input is a bare slug (no `/`), look for `review-software/reviews/<slug>/`.
 - If the input is a path, use it directly.
 
 **If nothing was provided:** prompt:
 
 > "Which review would you like to record decisions for?
-> Provide a slug (e.g. `evalabilly`) or a path (e.g. `reviews/evalabilly`)."
+> Provide a slug (e.g. `evalabilly`) or a path (e.g. `review-software/reviews/evalabilly`)."
 
 Wait for input before proceeding.
 
@@ -43,7 +41,7 @@ Wait for input before proceeding.
 
 Check that the directory exists. If it does not:
 
-> "No review found at `reviews/<slug>/`. Check the slug and try again,
+> "No review found at `review-software/reviews/<slug>/`. Check the slug and try again,
 > or provide the full path."
 
 Stop and wait for corrected input.
@@ -81,7 +79,7 @@ Announce the state to the user:
 
 If no questions could be found in any file, tell the user:
 
-> "No questions found in `reviews/<slug>/`. Paste the questions you'd
+> "No questions found in `review-software/reviews/<slug>/`. Paste the questions you'd
 > like to record decisions for, or run `/sdd-review` or `/pr-review` first."
 
 ---
@@ -153,7 +151,7 @@ leaving it blank or guessing.
 
 Show the full content and ask for confirmation:
 
-> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 On confirmation, write the file using this format:
 
@@ -193,3 +191,5 @@ Report the file path after writing.
   chars), then check whether that directory exists.
 - This skill does not re-run the security review. For a new review, use `/sdd-review` or
   `/pr-review`.
+- If any review question involves how or where an app is hosted, delegate to the `common`
+  agent to route it correctly.

@@ -107,7 +107,7 @@ Call the canonical workflow directly from your pipeline — scripts are fetched 
 ```yaml
 jobs:
   pr-review:
-    uses: monte-carlo-data/secure-design-practicum/.github/workflows/pr-review-reusable.yml@main
+    uses: <organization>/secure-design-practicum/.github/workflows/pr-review-reusable.yml@main
     with:
       pr-review-url: "https://github.com/org/repo/pull/42"
     secrets:
