@@ -83,12 +83,12 @@ jobs:
 
     steps:
     - name: Checkout caller repo
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Checkout security scripts
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: <organization>/security
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
