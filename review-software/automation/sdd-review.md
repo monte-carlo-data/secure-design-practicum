@@ -50,6 +50,8 @@ The assessment uses Organization's [NIST 800-30 based risk model](https://www.no
 - No new trust boundaries, external integrations, or authentication changes
 - Purely additive change (new UI, metric, dashboard) with no infrastructure changes
 
+A one-line "No new threat-model surface" row in the design doc's threat section does not meet the "no new trust boundaries" criterion by itself. The reviewer checks the existing boundaries the change touches and scores those; a short-form row counts only when it lists the boundaries touched, the data classification in motion, and that authorization and external integrations are unchanged.
+
 **What to do:** Proceed with implementation. The security questions in the review output are still worth addressing during code review.
 
 ## Why Provide Additional Context?
