@@ -1,9 +1,6 @@
 name: Reusable SDD Security Review
 
 on:
-  push:
-    paths:
-      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       notion-sdd-url:
@@ -36,7 +33,7 @@ on:
         type: string
         default: ''
       platform-context-path:
-        description: 'Path to platform context markdown (describes MC architecture patterns, multi-tenancy, IAM model)'
+        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
         required: false
         type: string
         default: ''
@@ -50,6 +47,15 @@ on:
         required: false
         type: boolean
         default: false
+      security-ref:
+        description: >
+          Git ref (commit SHA, tag or branch) of <organization>/security to check
+          the scripts out at. Pass the same SHA you pin in `uses: ...@<sha>`: pinning
+          `uses:` alone pins this workflow file, not the scripts it runs.
+          Defaults to main, which is what every caller got before this input existed.
+        required: false
+        type: string
+        default: 'main'
     secrets:
       ANTHROPIC_API_KEY:
         description: 'Anthropic API key for Claude'
@@ -57,11 +63,20 @@ on:
       NOTION_TOKEN:
         description: 'Notion integration token'
         required: true
+      # Org-level GitHub App credentials — mint a token that can read the
+      # private security repo for the script checkout. Pass them, or
+      # `secrets: inherit`, from every caller.
+      SECURITY_GITHUB_APP_ID:
+        description: 'GitHub App id — used to mint a token that can read the security repo'
+        required: false
+      SECURITY_GITHUB_APP_PRIVATE_KEY:
+        description: 'GitHub App private key — paired with SECURITY_GITHUB_APP_ID'
+        required: false
       SOURCE_REPO_TOKEN:
-        description: 'GitHub token with access to source repos (falls back to github.token)'
+        description: 'GitHub token with access to source repos (falls back to github.token). NOT used for the security repo checkout — that is the App token.'
         required: false
       SDD_SLACK_WEBHOOK_URL:
-        description: 'Slack incoming webhook URL for #team-security — notifications fire automatically when set'
+        description: 'Slack incoming webhook URL for #security-helpdesk — notifications fire automatically when set'
         required: false
       LINEAR_API_KEY:
         description: 'Linear API key for the Security team — triage tickets fire automatically when set and involvement is Required'
@@ -74,6 +89,10 @@ on:
 jobs:
   sdd-review:
     runs-on: ubuntu-latest
+    # `secrets` can't be referenced in a step `if:` — only in with/env/run. Surface
+    # the App secret's presence here so the mint/warn steps can gate on it.
+    env:
+      HAS_SECURITY_APP_TOKEN: ${{ secrets.SECURITY_GITHUB_APP_ID != '' && secrets.SECURITY_GITHUB_APP_PRIVATE_KEY != '' }}
     outputs:
       status: ${{ steps.review-status.outputs.result }}
     permissions:
@@ -87,15 +106,37 @@ jobs:
       with:
         fetch-depth: 0
 
+    # See pr-review-reusable.yml for the full rationale: a caller's github.token
+    # can't read a different private repo, so mint a scoped App token for the
+    # script checkout. Skipped when the App secrets aren't passed; the checkout
+    # then falls back and logs why it will 404.
+    - name: Mint security repo read token
+      id: security-token
+      if: ${{ env.HAS_SECURITY_APP_TOKEN == 'true' }}
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.SECURITY_GITHUB_APP_ID }}
+        private-key: ${{ secrets.SECURITY_GITHUB_APP_PRIVATE_KEY }}
+        owner: <organization>
+        repositories: security
+        permission-contents: read
+
+    - name: Warn if security repo token unavailable
+      if: ${{ steps.security-token.outcome == 'skipped' && github.repository != '<organization>/security' }}
+      run: |
+        echo "::warning title=No security App token::SECURITY_GITHUB_APP_ID / SECURITY_GITHUB_APP_PRIVATE_KEY were not passed to this reusable, so the security script checkout will use github.token and 404 on a private repo. Pass the org secrets — 'secrets: inherit' is easiest."
+
     - name: Checkout security scripts
       uses: actions/checkout@v7
       with:
         repository: <organization>/security
-        token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        ref: ${{ inputs.security-ref }}
+        token: ${{ steps.security-token.outputs.token || (secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN) || github.token }}
         path: .security
         sparse-checkout: |
           .github/scripts/sdd_reviewer.py
           .github/scripts/sdd_notify.py
+          shared/ai_config.py
         sparse-checkout-cone-mode: false
 
     - name: Set up Python
@@ -105,11 +146,13 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install anthropic requests notion-client PyYAML
+        pip install anthropic==1.4.0 requests notion-client PyYAML
 
     - name: Run SDD Security Review
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Optional AI proxy base URL (repo var); empty = direct to Anthropic.
+        ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         NOTION_SDD_URL: ${{ inputs.notion-sdd-url }}
@@ -134,6 +177,8 @@ jobs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        # Optional link to your Security triage queue, shown in the Slack post.
+        LINEAR_TRIAGE_URL: ${{ vars.LINEAR_TRIAGE_URL }}
       run: |
         python3 .security/.github/scripts/sdd_notify.py
 

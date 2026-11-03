@@ -15,6 +15,17 @@ on:
         default: false
         type: boolean
 
+# One deploy at a time. Two runs racing on the same page each clear it and then
+# append their own copy, which duplicates the page content. Queue rather than
+# cancel: cancelling mid-run can leave a page half-cleared.
+concurrency:
+  group: deploy-notion
+  cancel-in-progress: false
+
+# Explicit GITHUB_TOKEN scopes; do not rely on the org default.
+permissions:
+  contents: read
+
 jobs:
   deploy-to-notion:
     runs-on: ubuntu-latest
@@ -28,7 +39,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v7
       with:
-        python-version: '3.9'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
@@ -108,6 +119,44 @@ jobs:
     - name: Make script executable
       if: steps.check_changes.outputs.changes == 'true'
       run: chmod +x .github/scripts/deploy-to-notion.sh
+
+    # Fail fast on a broken deployer. The markdown->Notion converter is a Python
+    # body passed to `python3 -c "..."` -- a DOUBLE-QUOTED bash string -- so any
+    # bare `"` inside it closes the string early and silently corrupts the
+    # Python source. `bash -n` alone is NOT sufficient: an even number of stray
+    # quotes re-balances, so the script still parses while the Python is mangled
+    # (a green syntax check can still ship a failing deploy).
+    # Check both: shell parse, and that the Python body compiles.
+    - name: Syntax-check deploy script
+      if: steps.check_changes.outputs.changes == 'true'
+      run: |
+        bash -n .github/scripts/deploy-to-notion.sh
+        python3 - <<'CHECK'
+        import re, sys
+        lines = open('.github/scripts/deploy-to-notion.sh').read().split('\n')
+        start = next(i for i, l in enumerate(lines) if 'python3 -c "' in l)
+        end = next(i for i, l in enumerate(lines) if l.startswith('" > "$temp_json"'))
+        body = lines[start + 1:end]
+
+        bare = [(i + 1, l.strip()) for i, l in enumerate(body, start=start + 1)
+                if re.search(r'(?<!\\)"', l)]
+        if bare:
+            print('Unescaped double quote(s) inside the python3 -c string:')
+            for n, l in bare:
+                print(f'  line {n}: {l[:100]}')
+            print('Escape them as \\" or reword to avoid quotes.')
+            sys.exit(1)
+
+        # Compile the Python body as the shell will hand it over.
+        src = '\n'.join(body).replace('\\"', '"').replace('\\$', '$').replace('\\`', '`')
+        src = re.sub(r"open\('\$markdown_file'", "open('/dev/null'", src)
+        try:
+            compile(src, 'deploy-to-notion.sh:python-body', 'exec')
+        except SyntaxError as e:
+            print(f'Python body does not compile: line {e.lineno}: {e.msg}')
+            sys.exit(1)
+        print('OK: shell parses, no bare quotes, python body compiles')
+        CHECK
 
     - name: Deploy to Notion
       if: steps.check_changes.outputs.changes == 'true'

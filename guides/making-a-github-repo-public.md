@@ -1,10 +1,37 @@
-# Making a GitHub Repository Public
+# Making a GitHub Repo Public
 
-Use this guide when considering making a private GitHub repository public (e.g., for open source releases).
+Read this before changing any repository in your organization from private to public. Once a repo is public it is permanently indexed and cached by outsiders — so check it first.
 
-## When to Use This Guide
+## What to expect
 
-This process applies any time a private repository is being changed to public visibility. This ensures the change is intentional and safe.
+1. **Run the pre-flight review** (below) — it does the heavy lifting and tells you what to fix.
+2. **Fix anything it flags as a Blocker.** Recommended items are optional hardening.
+3. **Get sign-offs** if they apply — see *Who gets pulled in*.
+4. **Flip the repo** and do the after-going-public steps.
+
+## Who gets pulled in
+
+You don't run this alone. Loop in these people when their item comes up:
+
+- **Legal** — if the repo uses or bundles open-source code under **GPL / LGPL / AGPL**, or if you change any wording inside the `LICENSE` file. (See *OSS Compliance*.)
+- **Security** (`#security-helpdesk`) — only if the review comes back with **open Blockers** you aren't remediating, or it flags something it couldn't classify. A clean run (zero Blockers) **is** the security sign-off — you don't need to post anywhere, including for infrastructure code, data connectors, or security tooling.
+- **The owning team** — confirms they understand the repo goes permanently public, and records the approval.
+
+> **The pre-flight review is the source of truth.** This page is a short orientation; the review runs the full checklist below. Run it and follow what it reports.
+
+---
+
+## Running the Review
+
+There are two ways to run the pre-flight review — choose whichever fits your workflow:
+
+### Option A — Automated pipeline (recommended)
+
+If your organization has a reusable "public repo review" workflow, call it from the repo you want to open, or trigger it from the security repo against that repo. It runs the secret scans (gitleaks + trufflehog) and the full checklist automatically. Results appear in the run **Summary** tab as a shareable URL, and can optionally be posted as a comment on a Linear ticket.
+
+### Option B — Interactive review
+
+Walk the checklist below with an AI assistant (for example a Claude Code skill that takes `<organization>/my-repo` as its argument) or by hand. Run the secret scans yourself (see *Secrets & Credentials*).
 
 ---
 
@@ -15,7 +42,8 @@ Complete all items before changing visibility.
 ### Secrets & Credentials
 
 - [ ] Scan the full git history for secrets, tokens, API keys, and credentials
-  - Use tools like `gitleaks` and `trufflehog`:
+  - **Pipeline:** runs automatically (see Option A above)
+  - **Manual:** use `gitleaks` and `trufflehog` — three passes:
     1. **gitleaks** — full git history, deep encoding detection, archive traversal
     2. **gitleaks plain** — working tree scan for untracked files
     3. **trufflehog** — detector-based scan with live credential verification against 700+ APIs
@@ -29,11 +57,21 @@ Complete all items before changing visibility.
 - [ ] Review all open issues and PRs — internal-only context should be removed or redacted
 - [ ] Review commit messages for sensitive references (customer names, internal system names, vulnerability details)
 - [ ] Confirm no third-party proprietary code is included that cannot be publicly distributed
+- [ ] Audit for third-party copyleft code (e.g., GPL, LGPL, AGPL) — copyleft licenses impose obligations on the repo's own license; flag any findings to legal before proceeding
+
+### OSS Compliance (only if you ship a Docker image, package, or Helm chart)
+
+**Plain version:** if you publish an artifact, you're handing other people's open-source code along with your own. That carries legal obligations — so a couple of items here go to **legal**, not security.
+
+- [ ] **Copyleft licenses (GPL / LGPL / AGPL) anywhere in the bundled code** → flag to legal first. Shipping the artifact redistributes every bundled library, so these obligations apply even if none of your own code is copyleft.
+- [ ] **Include a `NOTICE` file** — bundled MIT / Apache-2.0 / BSD code requires you to carry its copyright and license text. Add a top-level `NOTICE` (or `THIRD_PARTY_LICENSES`) listing the bundled dependencies. *(Source-only repos that don't ship an artifact can skip this.)*
+- [ ] **Changing wording inside the `LICENSE` file → legal sign-off.** Updating the copyright line to the current company name is fine. Changing actual license terms — e.g. the named **Licensor** — is a contract change and needs legal/owner approval first, even for the rename.
 
 ### Repository Configuration
 
 - [ ] Add or verify `README.md` describes the project purpose and how to use it
-- [ ] Add `LICENSE` file — confirm with legal if unsure which license to use
+- [ ] Add `LICENSE` file — permissive (Apache 2.0 or MIT) or restrictive/proprietary are both acceptable. Copyleft licenses (GPL, LGPL, AGPL) must be flagged to legal before proceeding
+- [ ] Copyright notice uses the correct company name **and a year** (e.g. `Copyright 2026 Your Organization, Inc.`). The exact wording depends on when the repo was created — use the legal entity name that applies, and confirm with legal if the company has been renamed
 - [ ] Add `SECURITY.md` with instructions for responsible disclosure
 - [ ] Add `CONTRIBUTING.md` if external contributions are expected
 - [ ] Enable **Private vulnerability reporting** in repo Settings → Security
@@ -76,7 +114,7 @@ If any threat rates **High likelihood** or **High impact with no mitigating cont
 ## Approval
 
 - [ ] Confirm with the owning team that they understand the repo will be permanently indexed and cached externally
-- [ ] If the repo contains infrastructure-as-code, data connectors, or security tooling — get explicit sign-off from your security team
+- [ ] If the review left **open Blockers** (or flagged something it couldn't classify) — get explicit sign-off from the security team in `#security-helpdesk`. A zero-Blocker review needs no post; it is the sign-off.
 - [ ] Document the decision (ticket or design doc) with: repo name, date, approver, and rationale
 
 ---
@@ -88,7 +126,7 @@ If any threat rates **High likelihood** or **High impact with no mitigating cont
 3. Confirm you have read and understood the effects
 4. Click **Make this repository public**
 
-> Note: Visibility changes are logged in GitHub's org audit log. Notify your security team so they know the change was intentional.
+> Note: Visibility changes are logged in GitHub's org audit log, and your security team may alert on them. This is expected — you do not need to suppress or pre-approve the alert, but be prepared to confirm the change was intentional if asked.
 
 ---
 

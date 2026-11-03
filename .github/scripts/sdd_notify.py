@@ -3,10 +3,12 @@
 Security Review — notification step.
 
 Reads the review output JSON and automatically:
-  1. Posts a Slack message to #team-security when SLACK_WEBHOOK_URL is set
+  1. Posts a Slack message to #security-helpdesk when SLACK_WEBHOOK_URL is set
      and involvement is Required or Recommended.
   2. Creates an unassigned Linear triage ticket in the Security team when
-     LINEAR_API_KEY is set and involvement is Required.
+     LINEAR_API_KEY is set and involvement is Required AND the finding is
+     Critical (see is_critical). Sub-threshold Required reviews still post to
+     Slack; they just don't spawn a ticket.
 
 Fires automatically when secrets are present — no opt-in flags needed.
 Neither action blocks the review workflow — failures are logged as warnings.
@@ -18,7 +20,9 @@ Env vars:
   REVIEW_URL          — URL to link back to (PR URL, Notion URL, etc.)
   RUN_URL             — GitHub Actions run URL for the full review
   SLACK_WEBHOOK_URL   — if set, posts to Slack
-  LINEAR_API_KEY      — if set, creates Linear ticket for Required reviews
+  LINEAR_API_KEY      — if set, creates Linear ticket for Critical Required reviews
+  LINEAR_TRIAGE_URL   — optional URL of your Security triage queue, linked from
+                        the Slack post (plain text when unset)
 """
 
 import json
@@ -30,9 +34,33 @@ REVIEW_JSON = os.getenv("REVIEW_OUTPUT_FILE", "sdd_review_output.json")
 
 LINEAR_TEAM_ID = os.getenv("LINEAR_TEAM_ID", "")           # Set LINEAR_TEAM_ID env var or repo secret
 LINEAR_TRIAGE_STATUS_ID = os.getenv("LINEAR_TRIAGE_STATUS_ID", "")  # Set LINEAR_TRIAGE_STATUS_ID env var or repo secret
+LINEAR_TRIAGE_URL = os.getenv("LINEAR_TRIAGE_URL", "")     # Optional: link to the Security triage queue
 LINEAR_API_URL = "https://api.linear.app/graphql"
 
 NOTIFY_LEVELS = {"Required", "Recommended"}
+
+# Linear tickets only for Critical findings. A Required review at or above
+# this risk score needs human attention; below it, the PR comment and Slack
+# post carry the signal without queue spam. Boundary chosen so a 15/25 review
+# tickets and a 12/25 review does not.
+CRITICAL_RISK_THRESHOLD = 14
+
+
+def is_critical(involvement: dict) -> bool:
+    """True when a Required finding warrants a Linear ticket.
+
+    An absent risk score means the review failed closed (unparseable or
+    crashed model response) — a human must look at it, so it tickets.
+    """
+    score = involvement.get("risk_score")
+    if score is None:
+        return True
+    return score >= CRITICAL_RISK_THRESHOLD
+
+
+def _queue_link(label: str) -> str:
+    """Slack mrkdwn link to the triage queue, or plain text when no URL is configured."""
+    return f"<{LINEAR_TRIAGE_URL}|{label}>" if LINEAR_TRIAGE_URL else label
 
 
 def load_review() -> dict:
@@ -43,7 +71,7 @@ def load_review() -> dict:
         return json.load(f)
 
 
-def post_slack(webhook_url: str, result: dict, review_url: str, run_url: str) -> None:
+def post_slack(webhook_url: str, result: dict, review_url: str, run_url: str, ticket: bool = False) -> None:
     involvement = result.get("security_involvement", {})
     rec = involvement.get("recommendation", "")
     title = result.get("sdd_title", result.get("pr_title", "Unknown"))
@@ -57,11 +85,27 @@ def post_slack(webhook_url: str, result: dict, review_url: str, run_url: str) ->
     criteria_text = "\n".join(f"• {c}" for c in criteria) if criteria else ""
     color = "#eb5757" if rec == "Required" else "#f2c94c"
 
-    # Clear action line at the top
-    if rec == "Required":
-        action = ":rotating_light: *Action required:* Reply here or in the Linear ticket to assign a reviewer before implementation proceeds."
+    # Clear action line at the top. Intake is the Linear ticket, not this channel —
+    # a thread here scrolls away unowned, so point reviewers at the queue and keep
+    # Slack for questions.
+    if rec == "Required" and ticket:
+        action = (
+            ":rotating_light: *Action required:* A ticket is in the "
+            f"{_queue_link('Security Triage queue')} — "
+            "assign it there before implementation proceeds. This post is FYI; questions welcome in-thread."
+        )
+    elif rec == "Required":
+        action = (
+            ":eyes: *Review required — below the Critical ticket threshold, so no Linear ticket was created.* "
+            "Details are in the PR comment; open a "
+            f"{_queue_link('Security ticket')} if you want Security involved."
+        )
     else:
-        action = ":eyes: *Action suggested:* Reply here if you'd like a lightweight async review."
+        action = (
+            ":eyes: *FYI — no action needed.* Open a "
+            f"{_queue_link('Security ticket')} if you want a lightweight "
+            "async review, or ask in-thread."
+        )
 
     title_link = f"<{review_url}|{title}>" if review_url else title
 
@@ -227,7 +271,9 @@ def main():
         print(f"Involvement level is '{rec}' — no notification needed")
         sys.exit(0)
 
-    print(f"Involvement level is '{rec}' — sending notifications...")
+    critical = is_critical(involvement)
+    will_ticket = rec == "Required" and critical
+    print(f"Involvement level is '{rec}' (critical={critical}) — sending notifications...")
 
     # REVIEW_URL: PR URL or Notion SDD URL — used as the primary link in notifications
     review_url = os.getenv("REVIEW_URL", os.getenv("NOTION_SDD_URL", ""))
@@ -235,15 +281,21 @@ def main():
 
     slack_webhook = os.getenv("SLACK_WEBHOOK_URL", "")
     if slack_webhook:
-        post_slack(slack_webhook, result, review_url, run_url)
+        post_slack(slack_webhook, result, review_url, run_url, ticket=will_ticket)
     else:
         print("SLACK_WEBHOOK_URL not set — skipping Slack notification")
 
     linear_api_key = os.getenv("LINEAR_API_KEY", "")
-    if linear_api_key and rec == "Required":
+    if linear_api_key and will_ticket:
         create_linear_ticket(linear_api_key, result, review_url, run_url)
+    elif linear_api_key and rec == "Required":
+        score = involvement.get("risk_score")
+        print(
+            f"Required but below the Critical threshold "
+            f"(risk_score={score}, threshold={CRITICAL_RISK_THRESHOLD}) — no Linear ticket"
+        )
     elif linear_api_key and rec == "Recommended":
-        print("Involvement is 'Recommended' — Linear ticket creation only runs for 'Required'")
+        print("Involvement is 'Recommended' — Linear ticket creation only runs for Critical 'Required' findings")
     else:
         print("LINEAR_API_KEY not set — skipping Linear ticket creation")
 

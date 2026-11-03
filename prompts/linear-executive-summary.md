@@ -1,6 +1,6 @@
 # Linear Executive Summary Prompt
 
-Replace `{TICKET_ID}` with the Linear ticket identifier (e.g., SEC-844).
+Replace `{TICKET_ID}` with the Linear ticket identifier (e.g., SEC-1234).
 
 ---
 

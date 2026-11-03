@@ -23,6 +23,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -70,8 +73,12 @@ jobs:
             .github/scripts/deploy-to-lucidchart.sh --deploy-changed
           fi
 
-      - name: Commit deployment hashes
+      # main requires a pull request (no direct pushes), so the updated hashes
+      # go to a branch and a PR instead of straight to main.
+      - name: Open a PR with the deployment hashes
         if: steps.changes.outputs.changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -81,8 +88,13 @@ jobs:
             if git diff --staged --quiet; then
               echo "No hash changes to commit"
             else
+              BRANCH="lucidchart-hashes/${GITHUB_RUN_ID}"
+              git checkout -b "$BRANCH"
               git commit -m "Update Lucidchart deployment hashes [skip ci]"
-              git push
+              git push origin "$BRANCH"
+              gh pr create --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+                --title "Update Lucidchart deployment hashes" \
+                --body "Hashes of the draw.io files deployed to Lucidchart by run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Merging records them so the next run skips unchanged diagrams."
             fi
           fi
 

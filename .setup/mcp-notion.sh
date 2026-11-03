@@ -11,11 +11,31 @@ set -euo pipefail
 
 NOTION_MCP_URL="https://mcp.notion.com/mcp"
 
-echo "Configuring Notion MCP for Codex..."
+echo "Checking prerequisites..."
 if ! command -v codex >/dev/null 2>&1; then
-    echo "  codex CLI not found, skipping. Run .setup/vscode-codex.sh first to enable Codex support."
+    echo "  codex : not found, skipping Codex setup. Run .setup/vscode-codex.sh first to enable Codex support."
+    SKIP_CODEX=true
 else
-    echo "  codex: $(codex --version 2>/dev/null || echo 'installed')"
+    echo "  codex : $(codex --version 2>/dev/null || echo 'installed')"
+    SKIP_CODEX=false
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+    echo "  claude: not found, skipping Claude setup."
+    SKIP_CLAUDE=true
+else
+    echo "  claude: $(claude --version 2>/dev/null || echo 'installed')"
+    SKIP_CLAUDE=false
+fi
+
+if [[ "$SKIP_CODEX" == "true" && "$SKIP_CLAUDE" == "true" ]]; then
+    echo "Error: neither codex nor claude CLI is available."
+    exit 1
+fi
+
+if [[ "$SKIP_CODEX" == "false" ]]; then
+    echo ""
+    echo "Configuring Notion MCP for Codex..."
 
     # Remove existing definition to keep config idempotent.
     codex mcp remove notion >/dev/null 2>&1 || true
@@ -29,9 +49,7 @@ fi
 
 echo ""
 echo "Configuring Notion MCP for Claude Code..."
-if ! command -v claude >/dev/null 2>&1; then
-    echo "Claude CLI not found, skipping Claude setup."
-else
+if [[ "$SKIP_CLAUDE" == "false" ]]; then
     if [[ -n "${CLAUDE_MCP_SCOPE:-}" ]]; then
         SCOPE_CHOICE="${CLAUDE_MCP_SCOPE}"
     elif [[ -t 0 ]]; then
@@ -68,4 +86,4 @@ echo "Notion MCP setup complete."
 echo "Notes:"
 echo "  - Hosted Notion MCP uses OAuth and does not use NOTION_TOKEN."
 echo "  - Your access is limited by your Notion user/workspace permissions."
-echo "  - To troubleshoot, run: codex mcp logout notion && codex mcp login notion"
+echo "  - To troubleshoot Codex auth, run: codex mcp logout notion && codex mcp login notion"

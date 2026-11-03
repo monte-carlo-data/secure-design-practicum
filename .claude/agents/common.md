@@ -14,8 +14,8 @@ tools: mcp__linear__save_issue, mcp__linear__get_team, mcp__slack__slack_send_me
 Routes to one of three paths based on audience and data sensitivity:
 
 - **Just yourself** → run locally
-- **Prototype, no sensitive data** → Replit (company workspace, SSO-connected)
-- **Production / sensitive data / broad access** → SCI provisions on AWS
+- **Prototype, no sensitive data** → your organization's internal prototyping sandbox (SSO-connected)
+- **Production / sensitive data / broad access** → your platform team provisions on AWS
 
 ---
 
@@ -44,7 +44,7 @@ Help with local setup if yes. Stop here.
 
 ### Path B — Prototype, no sensitive data
 
-> "Replit is approved for this — it's SSO-connected via Okta and covered by our enterprise agreement. Work inside the company workspace and use Replit's Secrets manager for any API keys.
+> "The internal prototyping sandbox is approved for this — it's SSO-connected via your identity provider. See your organization's internal applications documentation for access and getting started.
 >
 > Want help getting it set up?"
 
@@ -56,7 +56,7 @@ If the app touches sensitive data or needs to be production-grade, use Path C in
 
 ### Path C — Production / sensitive data / broad access
 
-> "SCI handles internal app hosting on AWS with proper access controls. I can open a Linear ticket to get them started — want me to do that?"
+> "The platform team handles internal app hosting on AWS with proper access controls. I can open a Linear ticket to get them started — want me to do that?"
 
 If no, point them to `#security-team` or the SEC triage queue in Linear. Stop here.
 
@@ -96,7 +96,7 @@ Draft the ticket and show it to the user before creating:
 
 ---
 
-**Next steps for SCI**: Provision on internal AWS infrastructure with appropriate access controls.
+**Next steps for the platform team**: Provision on internal AWS infrastructure with appropriate access controls.
 ```
 
 After creating, offer to draft a message to `#security-team` linking the ticket.
@@ -107,5 +107,6 @@ After creating, offer to draft a message to `#security-team` linking the ticket.
 
 - For ownership questions (who provisions Okta, who owns DNS, etc.), consult your internal system ownership documentation.
 - Never suggest unapproved platforms: Vercel, Netlify, Render, Railway, Fly.io, Heroku, GitHub Pages, Hugging Face Spaces, Streamlit Cloud, or tunnel tools (ngrok, Cloudflare Tunnel, localtunnel).
-- Never recommend ad-hoc auth as a substitute for proper SCI provisioning.
+- Never recommend ad-hoc auth as a substitute for proper platform-team provisioning.
 - If the app handles sensitive data or broad access, suggest `/sdd-review` or `/pr-review` as a follow-up.
+- Canonical reference: your organization's internal applications documentation (where the sandbox and the hosting request process are described).

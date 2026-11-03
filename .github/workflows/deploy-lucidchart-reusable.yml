@@ -1,9 +1,6 @@
 name: Reusable Lucidchart Deployment
 
 on:
-  push:
-    paths:
-      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       changed-files:
@@ -26,6 +23,15 @@ on:
         required: false
         type: boolean
         default: true
+      security-ref:
+        description: >
+          Git ref (commit SHA, tag or branch) of <organization>/security to check
+          the scripts out at. Pass the same SHA you pin in `uses: ...@<sha>`: pinning
+          `uses:` alone pins this workflow file, not the scripts it runs.
+          Defaults to main, which is what every caller got before this input existed.
+        required: false
+        type: string
+        default: 'main'
     secrets:
       LUCID_TOKEN:
         description: 'Lucidchart OAuth token'
@@ -40,6 +46,11 @@ on:
       deploy-status:
         description: 'Status of the deployment'
         value: ${{ jobs.deploy-to-lucidchart.outputs.deploy-status }}
+
+# Explicit GITHUB_TOKEN scopes; do not rely on the org default.
+# contents: write because the deploy commits and pushes the updated Lucidchart hash file back to the caller repo.
+permissions:
+  contents: write
 
 jobs:
   deploy-to-lucidchart:
@@ -58,6 +69,7 @@ jobs:
       uses: actions/checkout@v7
       with:
         repository: <organization>/security
+        ref: ${{ inputs.security-ref }}
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         path: .security
         sparse-checkout: |

@@ -13,6 +13,11 @@ Outputs:
 
 Env vars:
   ANTHROPIC_API_KEY    — required
+  ANTHROPIC_BASE_URL   — optional AI proxy base URL: when set, odd PRs reach
+                         OpenAI through the proxy's /v1/responses; Claude
+                         reviews even PRs
+  OPENAI_API_KEY       — required on odd PRs when ANTHROPIC_BASE_URL is unset:
+                         OpenAI is called directly
   GITHUB_TOKEN         — required (for fetching PR diff)
   PR_REVIEW_URL        — required (https://github.com/org/repo/pull/N)
   NOTION_SDD_URL       — optional; if set, NOTION_TOKEN is also required
@@ -30,6 +35,7 @@ import re
 import sys
 import json
 import base64
+import urllib.error
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -38,6 +44,10 @@ import ai_config
 
 import anthropic
 import requests
+
+# The ticket rule lives with the code that files the ticket; the PR comment
+# imports it so the banner can't promise a ticket that isn't filed.
+from sdd_notify import CRITICAL_RISK_THRESHOLD, is_critical
 
 
 # Security-relevant file path keywords (higher score = more important to include)
@@ -54,7 +64,22 @@ SECURITY_KEYWORDS = [
     "sql", "query", "database",
     "network", "firewall", "vpc", "sg", "ingress", "egress",
     "role", "policy", "trust",
+    # Agentic / NHI patterns
+    "agent", "mcp", "tool_use", "tool_call", "anthropic", "claude",
+    "service_account", "api_key", "oauth_client", "nhi",
 ]
+
+AGENTIC_SIGNALS = [
+    "mcp", "tool_use", "tool_call", "anthropic", "claude", "agent_hub",
+    "agentic", "service_account", "api_key", "oauth_client",
+    "non_human", "non-human", "nhi",
+]
+
+
+def is_agentic_or_nhi(text: str) -> bool:
+    """Return True if the text contains signals of agentic AI or NHI patterns."""
+    lower = text.lower()
+    return any(signal in lower for signal in AGENTIC_SIGNALS)
 
 # Extensions we care about for security review
 SECURITY_EXTENSIONS = {
@@ -163,6 +188,18 @@ def score_file(filename: str, patch: str) -> int:
         if kw in lower:
             score += 8
             break  # count once per file
+
+    # Deploy-surface files. On a repo for an internally hosted app, these files
+    # set an internet-facing app's entire security posture and are typically
+    # NOT enforced server-side, so make sure their diffs always clear the
+    # budget. Keyed on the concrete filename/path, not a loose keyword, so repos
+    # without such a deploy manifest are unaffected.
+    if (
+        name in {"deploy.yaml", "deploy.yml", "oauth.py"}
+        or lower.startswith(".github/workflows/")
+        or "/.github/workflows/" in lower
+    ):
+        score += 12
 
     # Patch content hints
     if patch:
@@ -581,6 +618,7 @@ def build_prompt(
     sdd_content: Optional[str] = None,
     accepted_risks: Optional[str] = None,
     context_repos_section: Optional[str] = None,
+    owasp_guidance: Optional[str] = None,
 ) -> str:
     """Build the Claude prompt for PR security review."""
 
@@ -641,6 +679,15 @@ The following risks have been formally evaluated and accepted by the business. D
 
 """
 
+    if owasp_guidance:
+        prompt += f"""## OWASP Guidance — Agentic & NHI Frameworks
+
+This PR contains signals of agentic AI patterns (tool-use, MCP, Claude API) or non-human identities (service accounts, API keys, OAuth clients). Apply the following OWASP frameworks when generating security questions — prioritize threats from these lists that are relevant to the changed code:
+
+{owasp_guidance[:6000]}
+
+"""
+
     prompt += f"""## Code Changes (Diff)
 
 The following shows the most security-relevant changed files. Files are prioritized by security relevance. Binary files and files outside the context budget are noted but not shown.
@@ -666,6 +713,14 @@ Organization uses a NIST 800-30 based risk model. Risk = Likelihood x Impact, sc
 - New encryption schemes, key management, or cryptographic primitives
 - Significant changes to IAM roles, policies, or cross-account access
 - High estimated risk score (15-25)
+- **Deploy-surface change** — this PR touches an internally hosted app's deploy manifest
+  (`deploy.yaml`), its OIDC deploy workflow under `.github/workflows/`, or `oauth.py`, AND it does
+  any of: adds or loosens a `public_paths:` entry (a route that **bypasses SSO** and is reachable
+  from the public internet), changes `task_role_arn:` or the app's IAM identity, adds/changes
+  `secrets_prefixes:` or `integrations:` (third-party secrets / vendor OAuth), or modifies the OIDC
+  deploy workflow itself. These set an internet-facing app's security posture and are typically
+  **not enforced server-side**, so a human must see them before merge. When this applies, name the
+  specific signal in `trigger_criteria` (e.g. "public_paths SSO-bypass route added").
 
 **Recommended** - Security team should review but is not blocking. Apply if ANY of:
 - Net-new service or significant architectural change with moderate risk surface
@@ -740,7 +795,7 @@ Format your entire response as JSON:
     "likelihood": 3,
     "impact": 4,
     "risk_score": 12,
-    "intake_note": "What the team should do next"
+    "intake_note": "What the PR author should do next. Intake is a Security ticket, never a Slack post — for Required with risk_score >= {CRITICAL_RISK_THRESHOLD} a ticket is filed automatically, so say to track it in the Security Triage queue; for Required below that no ticket is filed, so say to answer the questions on this PR and open a ticket in that queue if they want Security involved; for Recommended they may open one. Slack (#security-helpdesk) is for questions only. Never tell the author a label, tag, or Security approval on the PR unblocks the merge; no such label exists."
   }},
   "questions": [
     {{
@@ -786,63 +841,195 @@ Format your entire response as JSON:
     return prompt
 
 
-def call_anthropic(prompt: str) -> Dict[str, Any]:
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# ── Model call budget ────────────────────────────────────────────────────────
+# Opus 5.5 always thinks, and thinking tokens count against max_tokens. At a
+# 32k cap, xhigh effort can spend the entire budget thinking and return no
+# text, or leave too little room and truncate the JSON mid-object. Thinking
+# runs roughly 10k-32k+ tokens per review and the JSON body 10k-12k, so 64k
+# leaves comfortable headroom over the worst observed think. Retries cover
+# the tail.
+REVIEW_EFFORT = "xhigh"
+# After an overrun, retry at high (a few thousand thinking tokens on a PR that
+# overran 32k at xhigh) rather than repeating the overrun.
+BUDGET_RETRY_EFFORT = "high"
+REVIEW_MAX_TOKENS = 64000
+REVIEW_ATTEMPTS = 3
+
+
+def _model_declined_result(stop_reason: Optional[str], content: str) -> Dict[str, Any]:
+    """Fail-closed verdict when the model refuses or returns no usable output.
+
+    A refusal / empty / unparseable response must NOT downgrade to the softest
+    verdict — the diffs that trigger a refusal are disproportionately the most
+    security-sensitive ones (security tooling, exploit-shaped code). Route these
+    to Required with an honest summary so a human always looks.
+    """
+    if stop_reason == "refusal":
+        summary = (
+            "The model **declined to respond** to this diff (stop_reason=refusal). "
+            "Refusals cluster on the most security-sensitive changes, so this is "
+            "escalated to Required for mandatory human review — not softened."
+        )
+        rationale = "Model declined to review this diff; escalating to Required rather than defaulting soft."
+    elif stop_reason == "max_tokens":
+        summary = (
+            f"The model ran out of output budget before finishing its review "
+            f"(stop_reason=max_tokens), and {REVIEW_ATTEMPTS} attempts produced no usable review. "
+            "Escalated to Required for mandatory human review."
+        )
+        rationale = "Model exhausted its output budget; no usable review after retries. Failing closed to Required."
+    elif not (content or "").strip():
+        summary = (
+            "The model returned an **empty response** — no review could be produced. "
+            "Escalated to Required for mandatory human review."
+        )
+        rationale = "Empty model response; failing closed to Required."
+    else:
+        summary = (
+            "The model's response **could not be parsed** as a review result. "
+            "Escalated to Required for mandatory human review."
+        )
+        rationale = "Unparseable model response; failing closed to Required."
+
+    return {
+        "pr_title": "Unknown PR",
+        "pr_review_mode": True,
+        "risk_summary": summary,
+        "security_involvement": {
+            "recommendation": "Required",
+            "rationale": rationale,
+            "trigger_criteria": ["Automated review unavailable — human review mandatory"],
+            "likelihood": None,
+            "impact": None,
+            "risk_score": None,
+            "intake_note": "",
+        },
+        "questions": [{
+            "number": 1,
+            "question": "Manual review required — the automated reviewer produced no usable verdict.",
+            "why_it_matters": "A missing automated verdict on a security review must fail closed to human review.",
+            "security_area": "General",
+            "exploit_scenario": None,
+            "confidence": 1.0,
+            "affected_file": None,
+            "affected_line": None,
+        }],
+        "data_classification": [],
+        "compliance_considerations": [],
+        "incident_scenarios": [],
+    }
+
+
+REVIEW_RETRY_BACKOFF_SECONDS = 15
+
+
+def reviewer_provider(pr_number: Any) -> str:
+    """Claude reviews even PRs, OpenAI (codex) odd ones — so a second automated
+    checker on the same PR can always be routed to the opposite vendor."""
+    return "codex" if int(pr_number) % 2 else "claude"
+
+
+def _stop_reason(result: Any) -> Optional[str]:
+    """Normalize why the model stopped to the Anthropic vocabulary
+    (refusal / max_tokens / end_turn) so both providers fail closed alike."""
+    raw = result.raw
+    if result.provider != "codex":
+        return getattr(raw, "stop_reason", None)
+    if not isinstance(raw, dict):
+        # Direct chat/completions (openai SDK object): map finish_reason.
+        choices = getattr(raw, "choices", None) or []
+        finish = getattr(choices[0], "finish_reason", None) if choices else None
+        return {"length": "max_tokens", "content_filter": "refusal", "stop": "end_turn"}.get(finish, finish or "end_turn")
+    raw = raw or {}
+    for item in raw.get("output") or []:
+        if any(part.get("type") == "refusal" for part in item.get("content") or []):
+            return "refusal"
+    if raw.get("status") == "incomplete":
+        reason = (raw.get("incomplete_details") or {}).get("reason")
+        return {"max_output_tokens": "max_tokens", "content_filter": "refusal"}.get(reason, reason)
+    return "end_turn"
+
+
+def _is_transient(exc: BaseException) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or exc.code >= 500
+    if isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError)):
+        return True
+    return isinstance(exc, anthropic.APIError) and ai_config.is_transient_api_error(exc)
+
+
+def call_reviewer(prompt: str, pr_number: Any):
+    """Run the review on this PR's vendor; returns (result, provider, model).
+
+    Retries an exhausted output budget, an empty or unparseable reply, and
+    transient API errors. A refusal, or retries that never produce
+    JSON, fail CLOSED to Required. A non-transient error exits non-zero, which
+    the workflow publishes as Required. No fallback to the other vendor.
+    """
+    provider = reviewer_provider(pr_number)
+    via_proxy = bool(os.getenv("ANTHROPIC_BASE_URL", "").strip())
+    if provider == "codex" and not via_proxy and not os.getenv("OPENAI_API_KEY", "").strip():
+        # No cross-vendor fallback by design, so with no way to reach OpenAI the
+        # review fails closed rather than quietly becoming a Claude review.
+        print("Error: odd PRs are reviewed by OpenAI, but neither ANTHROPIC_BASE_URL (an AI "
+              "proxy's /v1/responses) nor OPENAI_API_KEY (direct) is set. Set one of them.")
+        sys.exit(1)
+    model = ai_config.model_for(ai_config.PRIMARY, provider=provider)
+    route = "" if provider != "codex" else (" via the AI proxy" if via_proxy else " direct, OPENAI_API_KEY")
+    print(f"Reviewer: {provider} ({model}){route} for PR #{pr_number}")
     # Ensure prompt is safe for the HTTP transport layer
     prompt = prompt.encode("utf-8", errors="replace").decode("utf-8")
-    try:
-        response = client.messages.create(
-            model=ai_config.PRIMARY_MODEL,
-            max_tokens=16000,
-            temperature=0.2,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        content = response.content[0].text
-
-        if "```json" in content:
-            json_start = content.find("```json") + 7
-            json_end = content.find("```", json_start)
-            json_str = content[json_start:json_end].strip()
-        else:
-            json_match = re.search(r"\{[\s\S]*\}", content)
-            json_str = json_match.group(0) if json_match else content
-
-        return json.loads(json_str)
-
-    except json.JSONDecodeError:
-        return {
-            "pr_title": "Unknown PR",
-            "pr_review_mode": True,
-            "risk_summary": "Could not parse AI response — manual review required.",
-            "security_involvement": {
-                "recommendation": "Recommended",
-                "rationale": "Automated analysis failed; defaulting to Recommended out of caution.",
-                "trigger_criteria": [],
-                "likelihood": None,
-                "impact": None,
-                "risk_score": None,
-                "intake_note": "",
-            },
-            "questions": [{
-                "number": 1,
-                "question": "Manual review required — automated analysis could not parse results.",
-                "why_it_matters": "The automated review encountered a parsing issue.",
-                "security_area": "General",
-                "exploit_scenario": None,
-                "confidence": 1.0,
-                "affected_file": None,
-                "affected_line": None,
-            }],
-            "data_classification": [],
-            "compliance_considerations": [],
-            "incident_scenarios": [],
-        }
-    except Exception as e:
-        print(f"Error calling Anthropic API: {e}")
-        sys.exit(1)
+    # Codex goes through the proxy when the repo has one configured (the proxy
+    # supplies the OpenAI key), else straight to OpenAI with OPENAI_API_KEY.
+    # Supporting both matters: if the proxy variable disappears from caller
+    # repos, every odd PR would otherwise exit here.
+    extra: Dict[str, Any] = (
+        ({"transport": ai_config.TRANSPORT_ANTHROPIC_PROXY} if via_proxy else {}) if provider == "codex"
+        else {"output_config": {"effort": REVIEW_EFFORT}}
+    )
+    stop_reason: Optional[str] = None
+    text = ""
+    for attempt in range(1, REVIEW_ATTEMPTS + 1):
+        print(f"Model attempt {attempt}/{REVIEW_ATTEMPTS} ({provider}, {model})")
+        try:
+            result = ai_config.complete(
+                prompt,
+                provider=provider,
+                fallback=False,
+                tier="primary",
+                max_tokens=REVIEW_MAX_TOKENS,
+                **extra,
+            )
+        except RuntimeError as e:
+            cause = e.__cause__ or e
+            if not _is_transient(cause) or attempt == REVIEW_ATTEMPTS:
+                print(f"Error calling {provider} ({model}): {e}")
+                sys.exit(1)
+            print(f"  transient error ({type(cause).__name__}: {cause}); retrying")
+            ai_config.time.sleep(REVIEW_RETRY_BACKOFF_SECONDS * attempt)
+            continue
+        model = result.model
+        text = result.text
+        stop_reason = _stop_reason(result)
+        print(f"  stop_reason={stop_reason} text_chars={len(text)}")
+        if stop_reason == "refusal":
+            break
+        if stop_reason == "max_tokens":
+            if provider == "claude":
+                # Retrying an overrun at the same effort tends to overrun again.
+                extra["output_config"] = {"effort": BUDGET_RETRY_EFFORT}
+            continue
+        if text.strip():
+            try:
+                return ai_config.extract_json_object(text), provider, model
+            except json.JSONDecodeError as e:
+                print(f"  reply could not be parsed as JSON ({e})")
+    # Refusals cluster on the *most* security-shaped diffs, so a refusal — or
+    # no usable reply at all — fails CLOSED (Required), never softly.
+    return _model_declined_result(stop_reason, text), provider, model
 
 
-def format_markdown(result: Dict[str, Any], pr_url: str) -> str:
+def format_markdown(result: Dict[str, Any], pr_url: str, reviewer: str = "") -> str:
     """Format PR review results as markdown."""
     pr_title = result.get("pr_title", "PR")
     risk_summary = result.get("risk_summary", "")
@@ -853,9 +1040,41 @@ def format_markdown(result: Dict[str, Any], pr_url: str) -> str:
     ascii_diagram = result.get("architecture_diagram_ascii", "")
     involvement = result.get("security_involvement", {})
 
+    # sdd_notify files a ticket only for Critical Required findings, so the
+    # banner says which case this is.
+    if is_critical(involvement):
+        ticket_line = (
+            "A ticket has been filed automatically in the Security Triage queue for this PR; "
+            "the team picks it up from there. Track it on the ticket — no need to post anywhere."
+        )
+        closes_out = "What closes this out is the ticket above."
+        ask_suffix = " and reference the ticket."
+    else:
+        ticket_line = (
+            f"The risk score is below the Critical threshold ({CRITICAL_RISK_THRESHOLD}/25), so "
+            "no Security ticket is filed automatically. If you want Security involved, open one in "
+            "the Security Triage queue."
+        )
+        closes_out = "What closes this out is answering the questions below."
+        ask_suffix = "."
     involvement_banners = {
-        "Required": "> **SECURITY REVIEW: REQUIRED** — Post this PR in #team-security before merging.",
-        "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider posting this PR in #team-security for a lightweight async review.",
+        "Required": (
+            f"> **SECURITY REVIEW: REQUIRED** — {ticket_line}\n"
+            ">\n"
+            "> Security does not approve or merge the PR — the reviewing team owns that call with "
+            "these findings in hand. **No label, tag, or CI bypass clears this verdict**: if your "
+            "repo has a check that a label short-circuits, applying it records a Security sign-off "
+            f"that did not happen. {closes_out}\n"
+            ">\n"
+            "> Answering the questions below on this PR is the fastest path — a reviewer reads your "
+            "replies here. Have a question, or is this time-sensitive? Ask in #security-helpdesk"
+            f"{ask_suffix}"
+        ),
+        "Recommended": (
+            "> **SECURITY REVIEW: RECOMMENDED** — Not a merge blocker. If you want a lightweight async "
+            "review, open a ticket in the Security Triage queue; for a quick question, ask in "
+            "#security-helpdesk."
+        ),
         "Not Required": "> **SECURITY REVIEW: NOT REQUIRED** — This PR does not meet the criteria for Security team involvement.",
     }
 
@@ -972,6 +1191,8 @@ def format_markdown(result: Dict[str, Any], pr_url: str) -> str:
 """
 
     md += "\n---\n*Generated by PR Security Review Action*"
+    if reviewer:
+        md += f"\n*Reviewed by {reviewer}*"
     return md
 
 
@@ -1127,6 +1348,18 @@ def main():
     accepted_risks = risk_client.fetch_accepted_risks()
     accepted_risks_text = risk_client.format_for_prompt(accepted_risks)
 
+    # Detect agentic / NHI signals and inject OWASP guidance if relevant
+    owasp_guidance = None
+    combined_text = diff_context + (sdd_content or "") + pr_metadata.get("title", "") + (pr_metadata.get("body") or "")
+    if is_agentic_or_nhi(combined_text):
+        print("Agentic/NHI signals detected — loading OWASP guidance...")
+        owasp_path = Path(__file__).parent.parent.parent / "guides" / "owasp-guidance.md"
+        if owasp_path.exists():
+            owasp_guidance = owasp_path.read_text(encoding="utf-8", errors="ignore")
+            print(f"  Loaded OWASP guidance: {len(owasp_guidance)} chars")
+        else:
+            print(f"  Warning: owasp-guidance.md not found at {owasp_path}")
+
     # Build prompt and call Claude
     print("Generating security review...")
     prompt = build_prompt(
@@ -1137,14 +1370,17 @@ def main():
         sdd_content=sdd_content,
         accepted_risks=accepted_risks_text,
         context_repos_section=context_repos_section,
+        owasp_guidance=owasp_guidance,
     )
     print(f"Prompt size: {len(prompt)} chars")
 
-    result = call_anthropic(prompt)
+    result, provider, model = call_reviewer(prompt, os.getenv("PR_NUMBER", "").strip() or pr_number)
     result["pr_review_mode"] = True  # ensure flag is always set for sdd_notify.py
+    reviewer = f"{'OpenAI' if provider == 'codex' else 'Claude'} ({provider}, {model})"
+    print(f"Review written by {reviewer}")
 
     # Format markdown
-    markdown = format_markdown(result, pr_review_url)
+    markdown = format_markdown(result, pr_review_url, reviewer=reviewer)
 
     # Save outputs (FR-006: pr_review_* naming)
     with open("pr_review_output.json", "w") as f:
@@ -1191,6 +1427,22 @@ def main():
     print(
         f"\nGenerated: {num_q} questions, {num_d} data classifications, "
         f"{num_c} compliance items, {num_i} incident scenarios"
+    )
+
+    # Optional audit hook: if an ai_logger module is available alongside this
+    # script, record the invocation; otherwise skip silently.
+    try:
+        import ai_logger
+    except ImportError:
+        return
+    ai_logger.log_invocation(
+        workflow="pr-review",
+        model=model,
+        input_tokens=0,
+        output_tokens=0,
+        output_class="review_posted",
+        actions_taken=["github_pr_comment"],
+        prompt=prompt,
     )
 
 
