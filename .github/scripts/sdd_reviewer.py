@@ -660,6 +660,8 @@ Use this risk framing alongside the criteria below to determine involvement leve
 - Purely additive change (new UI, new metric, new dashboard) with no infrastructure changes
 - Estimated risk score is Low (1–4) based on likelihood × impact assessment
 
+The author's threat section does not score itself. If the SDD's STRIDE / threat-model section is a single self-declared row ("No new threat-model surface", "no new trust boundary or mechanism", or similar), that does NOT satisfy the "no new trust boundaries" criterion. Treat it as an unverified claim: identify the EXISTING trust boundaries the change touches (an existing endpoint returning more fields, an existing role reused for a new purpose, a new tenant-scoped query on an existing API, a data-classification increase with no infrastructure change) and score those. A short-form row only counts when it states what was checked: the existing boundaries touched, the classification of the data in motion, and that authorization and external integrations are unchanged. Otherwise recommend at least **Recommended** and list the missing threat analysis as a gap in section 2.
+
 Include a brief likelihood (1–5) and impact (1–5) estimate with your recommendation to explain the risk score.
 
 Use your judgment when a design sits between categories — err toward the higher involvement level when uncertain.
