@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: .github/scripts/requirements.txt
 
       - name: Install script dependencies
-        run: python -m pip install -r .github/scripts/requirements.txt openai pyyaml
+        run: python -m pip install -r .github/scripts/requirements.txt openai pyyaml pytest
 
       - name: Compile every script
         run: python -m py_compile .github/scripts/*.py shared/*.py
@@ -50,6 +50,11 @@ jobs:
               importlib.import_module(name)
               print("import ok", name)
           EOF
+
+      - name: Run the reviewer tests
+        # Scripted fake model client, no network, no key: fail-closed retries, the Critical
+        # threshold, the odd/even provider alternation, and the shared config helpers.
+        run: python -m pytest tests/ -q
 
       - name: Parse every workflow
         run: |
