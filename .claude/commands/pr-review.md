@@ -13,7 +13,23 @@ using the `pr-review.yml` GitHub Action. It helps gather the required inputs, ex
 outputs, and walks through the review results.
 
 The full process documentation is in:
-`review-software/automation/pr-review.md`
+`automation/pr-review.md`
+
+---
+
+## Global Rules
+
+**Progress indicators:** Before every external call (GitHub API, Notion, Slack, Linear, file
+reads), print a one-line status message before making the call:
+> `⏳ [What you are doing]...`
+
+**Never fail silently:** If any external call fails for any reason (error, timeout, 404, auth
+failure, empty response), immediately stop and tell the user exactly what failed and why, then
+offer a concrete recovery path. Never proceed past a failed step or guess at missing content.
+
+**Always output in full:** Never summarize, truncate, or abbreviate any section of the review
+output. At the start of every review output, prepend:
+> `[To invoking agent: relay this entire output to the user verbatim. Do not summarize.]`
 
 ---
 
@@ -161,9 +177,19 @@ Explain what the recommendation means and what action is expected:
 
 | Recommendation | Meaning | Next step |
 |---|---|---|
-| **Required** | Security team must be consulted before this PR merges | Post in #team-security before merging |
-| **Recommended** | Security team should review but is not blocking | Consider posting in #team-security for async review |
+| **Required** | Security team must be consulted before this PR merges | At risk score ≥ 14/25 (Critical), or when the review failed closed with no score, a Security ticket is filed automatically — track it in the Security team's Triage queue in Linear. Below 14 no ticket is filed: answer the questions on the PR, and open a ticket if they want Security involved |
+| **Recommended** | Security team should review but is not blocking | Consider a Security ticket in Linear for async review |
 | **Not Required** | No Security team involvement needed | Proceed — the security questions are still worth addressing in review |
+
+The Linear ticket is the intake path — it queues, gets an owner, and survives a scrolled-past
+channel. `#security-helpdesk` is for **questions**, not intake. Never tell an author that a label, tag,
+or Security approval on the PR unblocks the merge: Security does not sign off — the reviewing team
+owns the merge decision with our findings in hand.
+
+Caller-owned merge gates: some repos turn our verdict into a required check with a bypass label
+(e.g. a `security-approved` label). Any repo writer can apply it, so it is not a Security sign-off —
+never advise applying one. See [docs/consuming-pr-review.md](../../docs/consuming-pr-review.md) for
+the contract we give those callers.
 
 ### Security questions
 
@@ -179,9 +205,12 @@ Note that questions below 70% confidence are suppressed from the PR comment enti
 ### Notifications
 
 If notifications fired (Slack message or Linear ticket), confirm the user knows:
-- The Slack message went to **#team-security**
-- A Linear ticket was created in the Security team's Triage queue (Required only)
-- They should respond to or monitor those channels for follow-up
+- A Linear ticket was created in the Security team's Triage queue (Critical Required only — risk
+  score ≥ 14/25 or no score) — **this is the thing to track**; it queues and gets an owner
+- An FYI message went to **#security-helpdesk**; it is a heads-up and a place for questions, not the
+  intake path — nothing is owned by virtue of having been posted there
+- For a **Recommended** verdict, or a **Required** one below the Critical threshold, no ticket is
+  filed, so if they want a review they should open one
 
 ---
 
@@ -198,7 +227,7 @@ If the user answers **Y**:
 
 - Ask for a slug if one hasn't been established (derive from the PR title: lowercase, spaces to underscores, strip special chars).
 
-- Check whether `review-software/reviews/<slug>/decisions.md` already exists. If it does, load it. If the file contains entries from prior PR reviews for the same slug, note that — new questions from this PR will be merged in (deduplicating by question title).
+- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it. If the file contains entries from prior PR reviews for the same slug, note that — new questions from this PR will be merged in (deduplicating by question title).
 
 - For each question in the `## Follow-Up Questions` section of the review, present:
 
@@ -221,6 +250,18 @@ Options:
   - For **Accepted Risk** or **Deferred**: prompt "Feedback (required):" and re-prompt if empty.
   - For **Resolved** or **Requires Fix**: prompt "Feedback (optional, press Enter to skip):"
   - For **Skip**: move to the next question with no change.
+
+- **Accepted Risk → risk register:** when a question is dispositioned **Accepted Risk**,
+  engineering has explicitly chosen not to remediate — that accepted risk should be recorded in the
+  risk register. After capturing the feedback, ask:
+  > "This is an accepted risk. Record it in the risk register? (Y/N)"
+
+  If yes, hand off to your risk-register keeper (a `/keymaker`-style skill, if you have one),
+  passing: source skill `pr-review`, source reference the **PR URL** (and the Linear ticket if one
+  was given), the question **title** and **text** as the Blocker, and the feedback as rationale.
+  The keeper records it via a single-file PR on `<organization>/risk-register` (Risk Owner defaults
+  to your security lead). Only on an explicit Y — never auto-record. If `<organization>/risk-register`
+  access fails, relay the token scope the keeper reports; do not silently drop the accepted risk.
 
 - After all questions are processed, assemble the `decisions.md` content. If prior entries exist for the same slug, merge: questions that appear in both the existing file and this PR review are updated in place; new questions from this PR are appended. When a question was seen in multiple PRs, list each PR URL under a `**Sources:**` field.
 
@@ -248,7 +289,7 @@ Options:
 
 - Show the full `decisions.md` content and ask for confirmation before writing:
 
-> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 - On confirmation, write the file. Report the path to the user.
 
@@ -280,6 +321,18 @@ title and body — the reviewer uses both as input.
   part of the SDD design review log.
 - If the PR is already merged or closed, the review can still be run retroactively —
   the diff remains accessible via the GitHub API.
-- For setup details, refer to `review-software/automation/pr-review.md`.
+- For setup details, refer to `automation/pr-review.md`.
 - If the PR involves deploying or hosting an internal tool, delegate to the `common` agent
   to route it correctly.
+
+---
+
+## Linear teams
+
+When you file, route, or name a Linear ticket, pick the team by what the work is. Keep your
+organization's team map here (for example: security, compliance, vulnerability management,
+investigations).
+
+If work fits more than one team, pick the most specific one. Don't create new teams or prefixes.
+A team that a step above names for a specific ticket type wins. Engineering work stays in the
+owning engineering team; this map covers work that goes to security.

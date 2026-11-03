@@ -12,7 +12,7 @@ This skill loads an existing `decisions.md` from a review directory, presents un
 questions for disposition, and writes the updated file. It is the primary way to record
 or update decisions after a review has been completed.
 
-Decisions live at `review-software/reviews/<slug>/decisions.md`. They are separate from
+Decisions live at `reviews/<slug>/decisions.md`. They are separate from
 the review narrative (`review.md` or `pr-review.md`) so they can be updated independently
 as engineers work through findings.
 
@@ -21,17 +21,17 @@ as engineers work through findings.
 ## Step 0 — Identify the review
 
 Check whether the user provided a slug or path at invocation
-(e.g. `/decision evalabilly` or `/decision review-software/reviews/evalabilly`).
+(e.g. `/decision evalabilly` or `/decision reviews/evalabilly`).
 
 **If a slug or path was provided:** resolve it to a review directory and proceed to Step 1.
 
-- If the input is a bare slug (no `/`), look for `review-software/reviews/<slug>/`.
+- If the input is a bare slug (no `/`), look for `reviews/<slug>/`.
 - If the input is a path, use it directly.
 
 **If nothing was provided:** prompt:
 
 > "Which review would you like to record decisions for?
-> Provide a slug (e.g. `evalabilly`) or a path (e.g. `review-software/reviews/evalabilly`)."
+> Provide a slug (e.g. `evalabilly`) or a path (e.g. `reviews/evalabilly`)."
 
 Wait for input before proceeding.
 
@@ -41,7 +41,7 @@ Wait for input before proceeding.
 
 Check that the directory exists. If it does not:
 
-> "No review found at `review-software/reviews/<slug>/`. Check the slug and try again,
+> "No review found at `reviews/<slug>/`. Check the slug and try again,
 > or provide the full path."
 
 Stop and wait for corrected input.
@@ -79,7 +79,7 @@ Announce the state to the user:
 
 If no questions could be found in any file, tell the user:
 
-> "No questions found in `review-software/reviews/<slug>/`. Paste the questions you'd
+> "No questions found in `reviews/<slug>/`. Paste the questions you'd
 > like to record decisions for, or run `/sdd-review` or `/pr-review` first."
 
 ---
@@ -151,7 +151,7 @@ leaving it blank or guessing.
 
 Show the full content and ask for confirmation:
 
-> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 On confirmation, write the file using this format:
 
@@ -179,6 +179,22 @@ On confirmation, write the file using this format:
 
 Report the file path after writing.
 
+### Accepted Risk → risk register
+
+After writing, if any entry was dispositioned **Accepted Risk** this session, those are risks
+engineering explicitly chose not to remediate — offer to record them in the risk register:
+
+> "N question(s) were Accepted Risk. Record them in the risk register? (Y/N)"
+
+If yes, hand each one off to your risk-register keeper (a `/keymaker`-style skill, if you have
+one), one at a time, passing: source skill `decision`, source reference the review's `**Source:**`
+link (PR / SDD / repo, plus the Linear ticket if known), the question **title** and **text** as the
+Blocker, and the recorded feedback as rationale. The keeper records each via a single-file PR on
+`<organization>/risk-register` (Risk Owner defaults to your security lead).
+
+Only on an explicit Y — never auto-record. If `<organization>/risk-register` access fails, relay the
+token scope the keeper reports; do not silently drop the accepted risk.
+
 ---
 
 ## Notes
@@ -193,3 +209,15 @@ Report the file path after writing.
   `/pr-review`.
 - If any review question involves how or where an app is hosted, delegate to the `common`
   agent to route it correctly.
+
+---
+
+## Linear teams
+
+When you file, route, or name a Linear ticket, pick the team by what the work is. Keep your
+organization's team map here (for example: security, compliance, vulnerability management,
+investigations).
+
+If work fits more than one team, pick the most specific one. Don't create new teams or prefixes.
+A team that a step above names for a specific ticket type wins. Engineering work stays in the
+owning engineering team; this map covers work that goes to security.

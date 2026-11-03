@@ -1,9 +1,6 @@
 name: Reusable Notion Deployment
 
 on:
-  push:
-    paths:
-      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       changed-files:
@@ -21,6 +18,16 @@ on:
         required: false
         type: string
         default: '.github/notion-mappings.txt'
+      security-ref:
+        description: >
+          Git ref (commit SHA, tag or branch) of <organization>/security to check
+          the deploy script out at. Pass the same SHA you pin in
+          `uses: ...deploy-notion-reusable.yml@<sha>`: pinning `uses:` alone pins this
+          workflow file, not the script it runs. Defaults to main, which is
+          what every caller got before this input existed.
+        required: false
+        type: string
+        default: 'main'
     secrets:
       NOTION_TOKEN:
         description: 'Notion integration token'
@@ -35,6 +42,11 @@ on:
       deploy-status:
         description: 'Status of the deployment'
         value: ${{ jobs.deploy-to-notion.outputs.deploy-status }}
+
+# Explicit GITHUB_TOKEN scopes; an org default may grant write to any workflow without this block.
+# Read-only: it diffs the checkout and writes to Notion with NOTION_TOKEN, never to GitHub.
+permissions:
+  contents: read
 
 jobs:
   deploy-to-notion:
@@ -53,6 +65,7 @@ jobs:
       uses: actions/checkout@v7
       with:
         repository: <organization>/security
+        ref: ${{ inputs.security-ref }}
         token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         path: .security
         sparse-checkout: |
@@ -62,7 +75,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v7
       with:
-        python-version: '3.9'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |

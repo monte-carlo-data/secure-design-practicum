@@ -183,26 +183,37 @@ def parse_inline_formatting(text):
             link_text = link_match.group(1)
             link_url = link_match.group(2)
             if link_text:
-                # Only create Notion links for absolute URLs - relative paths and anchors are invalid
-                if link_url.startswith('http://') or link_url.startswith('https://'):
-                    rich_text.append({
-                        'type': 'text',
-                        'text': {'content': link_text, 'link': {'url': link_url}}
-                    })
-                else:
-                    rich_text.append({
-                        'type': 'text',
-                        'text': {'content': link_text}
-                    })
+                # Recursively parse the link text so inline formatting inside
+                # the brackets (e.g. [**bold**](url)) is honored rather than
+                # rendered as literal ** markers.
+                inner = parse_inline_formatting(link_text)
+                # Only attach a Notion link for absolute URLs - relative paths
+                # and anchors are invalid. mailto: links are valid and clickable.
+                if (link_url.startswith('http://') or
+                        link_url.startswith('https://') or
+                        link_url.startswith('mailto:')):
+                    for node in inner:
+                        node['text']['link'] = {'url': link_url}
+                rich_text.extend(inner)
         elif part.startswith('**') and part.endswith('**'):
             # Bold text
             content = part[2:-2]
             if content:
-                rich_text.append({
-                    'type': 'text',
-                    'text': {'content': content},
-                    'annotations': {'bold': True}
-                })
+                # Recursively parse the bold content so a link wrapped in bold
+                # (e.g. **[text](url)**) keeps its link. The link branch above
+                # already recurses the other way around ([**text**](url)); without
+                # this, bold-wrapped links rendered as literal markdown.
+                inner = parse_inline_formatting(content)
+                if any(node['text'].get('link') for node in inner):
+                    for node in inner:
+                        node.setdefault('annotations', {})['bold'] = True
+                    rich_text.extend(inner)
+                else:
+                    rich_text.append({
+                        'type': 'text',
+                        'text': {'content': content},
+                        'annotations': {'bold': True}
+                    })
         elif part.startswith('\`') and part.endswith('\`'):
             # Inline code
             content = part[1:-1]
@@ -242,6 +253,18 @@ def parse_inline_formatting(text):
 
     return rich_text if rich_text else [{'type': 'text', 'text': {'content': text}}]
 
+def split_table_row(line):
+    # Split a markdown table row into cells, KEEPING empty cells. The old
+    # filter dropped blank cells, which shifted every later cell one column
+    # left, so values landed under the wrong header. Only the single outer
+    # pipe on each side is structural.
+    line = line.strip()
+    if line.startswith('|'):
+        line = line[1:]
+    if line.endswith('|'):
+        line = line[:-1]
+    return [cell.strip() for cell in line.split('|')]
+
 def markdown_to_notion_blocks(markdown_content):
     blocks = []
     list_stack = []
@@ -273,6 +296,12 @@ def markdown_to_notion_blocks(markdown_content):
         if not line:
             # Empty lines end list context.
             list_stack = []
+            i += 1
+            continue
+
+        # Single-line HTML comments (e.g. generated-section markers) are for the
+        # repo copy only; publishing them would show the raw marker text.
+        if re.fullmatch(r'<!--.*-->', line):
             i += 1
             continue
 
@@ -351,7 +380,7 @@ def markdown_to_notion_blocks(markdown_content):
             list_stack = []
             # Found table header, process entire table
             table_rows = []
-            header_row = [cell.strip() for cell in line.split('|') if cell.strip()]
+            header_row = split_table_row(line)
             table_width = len(header_row)
             table_rows.append(header_row)
             
@@ -365,7 +394,7 @@ def markdown_to_notion_blocks(markdown_content):
                 if not current_line or '|' not in current_line:
                     break
                     
-                row = [cell.strip() for cell in current_line.split('|') if cell.strip()]
+                row = split_table_row(current_line)
                 
                 # Ensure row has exactly the same number of cells as header
                 while len(row) < table_width:
@@ -484,6 +513,53 @@ def markdown_to_notion_blocks(markdown_content):
                 }
             }
             add_list_block(bullet_block, indent_level)
+        # Numbered list items, dot or close-paren marker. Without this they fell
+        # through to the paragraph branch, which renders the literal marker and
+        # leaves inline links unparsed -- parse_inline_formatting's link regex is
+        # anchored, so a leading marker prevents the match.
+        # NOTE: no quote characters in this comment. This whole Python body is a
+        # double-quoted bash string, so a bare double quote would close it.
+        elif re.match(r'^\s*\d+[.)]\s+', raw_line):
+            num_match = re.match(r'^(\s*)\d+[.)]\s+(.*)$', raw_line)
+            indent_level = get_indent_level(num_match.group(1))
+            numbered_block = {
+                'object': 'block',
+                'type': 'numbered_list_item',
+                'numbered_list_item': {
+                    'rich_text': parse_inline_formatting(num_match.group(2))
+                }
+            }
+            add_list_block(numbered_block, indent_level)
+        # Blockquote (single or multi-line) — collapse consecutive '>' lines
+        # into one Notion quote block. A lone '>' (empty quote line) is skipped
+        # so it does not render as a dangling empty blockquote.
+        elif line.startswith('>'):
+            list_stack = []
+            quote_lines = []
+            while i < len(lines):
+                q_line = lines[i].strip()
+                if not q_line.startswith('>'):
+                    break
+                # Strip the leading '>' and one optional space
+                q_content = re.sub(r'^>\s?', '', q_line)
+                if q_content:
+                    quote_lines.append(q_content)
+                i += 1
+            i -= 1  # outer loop will advance past the last quote line
+            if quote_lines:
+                rich_text = []
+                for idx, q in enumerate(quote_lines):
+                    if idx > 0:
+                        # Line break within the single quote block
+                        rich_text.append({'type': 'text', 'text': {'content': '\\n'}})
+                    rich_text.extend(parse_inline_formatting(q))
+                blocks.append({
+                    'object': 'block',
+                    'type': 'quote',
+                    'quote': {
+                        'rich_text': rich_text
+                    }
+                })
         # Horizontal rule
         elif line.startswith('---') and not ('|' in line):
             list_stack = []
@@ -552,7 +628,9 @@ update_notion_page() {
     local blocks_file=$(convert_markdown_to_notion_blocks "$markdown_file")
     
     log "Clearing existing page content..."
-    # Paginate through all existing blocks and delete them
+    # Paginate through all existing blocks and delete them. Child pages and
+    # child databases are blocks of their parent too; deleting them would
+    # archive subpages that people create under a synced page, so keep them.
     local cursor=""
     while true; do
         local url="$NOTION_API_URL/blocks/$notion_page_id/children?page_size=100"
@@ -564,7 +642,7 @@ update_notion_page() {
             -H "Content-Type: application/json" \
             "$url")
         local existing_blocks
-        existing_blocks=$(echo "$page_response" | jq -r '.results[].id' 2>/dev/null)
+        existing_blocks=$(echo "$page_response" | jq -r '.results[] | select(.type != "child_page" and .type != "child_database") | .id' 2>/dev/null)
         if [ -n "$existing_blocks" ]; then
             echo "$existing_blocks" | while read -r block_id; do
                 if [ -n "$block_id" ] && [ "$block_id" != "null" ]; then
@@ -769,14 +847,14 @@ deploy_file() {
     # Check if file exists
     if [ ! -f "$file_path" ]; then
         warning "File not found: $file_path - skipping"
-        return 1
+        return 3
     fi
 
     # Get Notion page ID from mappings
     local page_id=$(get_notion_page_id "$file_path")
     if [ -z "$page_id" ] || [ "$page_id" = "null" ]; then
         warning "No Notion page mapping found for: $file_path - skipping"
-        return 1
+        return 3
     fi
 
     log "Found Notion page ID: ${page_id:0:8}... for $file_path"
@@ -798,6 +876,7 @@ deploy_changed_files() {
     local deployed_count=0
     local skipped_count=0
     local error_count=0
+    local failed_files=""
 
     if [ "$files" = "all" ]; then
         log "Deploying all mapped files..."
@@ -816,14 +895,33 @@ deploy_changed_files() {
             continue
         fi
 
-        if deploy_file "$file_path"; then
+        # Deploy each file in its own subshell. The Notion API error paths call
+        # `exit 1`, which used to kill the whole run at the first bad page, so
+        # one stale mapping blocked every file after it. set -e stays on
+        # inside the subshell so a file's
+        # deploy still stops at its own first failure; only the loop survives.
+        # Return codes: 0 deployed, 3 skipped (missing file / no mapping),
+        # anything else failed.
+        set +e
+        ( set -e; deploy_file "$file_path" )
+        local rc=$?
+        set -e
+        if [ "$rc" -eq 0 ]; then
             deployed_count=$((deployed_count + 1))
+        elif [ "$rc" -eq 3 ]; then
+            skipped_count=$((skipped_count + 1))
         else
             error_count=$((error_count + 1))
+            failed_files="${failed_files}  - ${file_path}\n"
         fi
     done
 
-    log "Deployment complete: $deployed_count deployed, $error_count errors"
+    log "Deployment complete: $deployed_count deployed, $skipped_count skipped, $error_count failed"
+    if [ "$error_count" -gt 0 ]; then
+        error "Failed to deploy $error_count file(s):"
+        printf "%b" "$failed_files" >&2
+        return 1
+    fi
     return 0
 }
 

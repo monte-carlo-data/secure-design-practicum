@@ -1,9 +1,6 @@
 name: Reusable PR Security Review
 
 on:
-  push:
-    paths:
-      - '.github/workflows/.reusable-suppress-ghost-runs'  # path never exists; prevents ghost push failures
   workflow_call:
     inputs:
       pr-review-url:
@@ -28,12 +25,38 @@ on:
         required: false
         type: string
         default: ''
+      security-ref:
+        description: >
+          Git ref (commit SHA, tag or branch) of <organization>/security to check
+          the reviewer scripts out at. Pass the same SHA you pin in
+          `uses: ...pr-review-reusable.yml@<sha>`: pinning `uses:` alone pins this
+          workflow file, not the scripts it runs. Defaults to main, which
+          is what every caller got before this input existed.
+        required: false
+        type: string
+        default: 'main'
     secrets:
       ANTHROPIC_API_KEY:
         description: 'Anthropic API key for Claude'
         required: true
+      # Org-level GitHub App credentials (installed on every repo with
+      # contents:read). The reusable mints a short-lived installation token from
+      # these to check out its own scripts from the private security repo. A
+      # caller's own GITHUB_TOKEN cannot read a different private repo (404).
+      # Pass these — `secrets: inherit` is the easy way — or the checkout falls
+      # back to github.token and fails.
+      SECURITY_GITHUB_APP_ID:
+        description: 'GitHub App id — used to mint a token that can read the security repo'
+        required: false
+      SECURITY_GITHUB_APP_PRIVATE_KEY:
+        description: 'GitHub App private key — paired with SECURITY_GITHUB_APP_ID'
+        required: false
       SOURCE_REPO_TOKEN:
-        description: 'GitHub token with access to the PR repo (falls back to github.token)'
+        description: >
+          Optional token with read access to the PR repo and any private
+          CONTEXT_REPOS. Used by the reviewer for the diff/comments; falls back
+          to github.token, which is correct for same-repo PRs. NOT used to check
+          out the security repo — that is the App token's job (see above).
         required: false
       NOTION_TOKEN:
         description: 'Notion integration token — required only when notion-sdd-url is provided'
@@ -42,18 +65,48 @@ on:
         description: 'Slack incoming webhook URL — notifications fire automatically when set'
         required: false
       LINEAR_API_KEY:
-        description: 'Linear API key for the Security team — triage tickets fire automatically when set and involvement is Required'
+        description: >
+          Linear API key for the Security team — triage tickets fire automatically when set,
+          but only for Critical Required findings (risk score >= 14/25, or fail-closed with no
+          score). Sub-threshold Required reviews still comment on the PR and post to Slack.
+        required: false
+      OPENAI_API_KEY:
+        description: >
+          OpenAI API key. Odd-numbered PRs are reviewed by OpenAI; with no
+          ANTHROPIC_BASE_URL proxy configured the reviewer calls OpenAI directly with this key
+          and fails closed to Required without it. Pass it — `secrets: inherit` is easiest.
         required: false
     outputs:
       review-status:
         description: 'Status of the PR review (success or failure)'
         value: ${{ jobs.pr-review.outputs.status }}
+      # ── Gate on THESE, never on the review comment's text ──────────────────
+      # A caller that wants to turn the verdict into a required check should read
+      # `recommendation`, not grep the PR comment for "SECURITY REVIEW: REQUIRED".
+      # The banner is prose written for humans and it gets reworded; these
+      # outputs are the contract. See docs/consuming-pr-review.md.
+      recommendation:
+        description: 'Security involvement verdict: Required | Recommended | Not Required | Unknown'
+        value: ${{ jobs.pr-review.outputs.recommendation }}
+      risk-score:
+        description: 'Risk score out of 25 (likelihood x impact), or empty when the review produced none'
+        value: ${{ jobs.pr-review.outputs.risk-score }}
+      review-required:
+        description: 'true when recommendation is Required — the single boolean a merge gate should key on'
+        value: ${{ jobs.pr-review.outputs.review-required }}
 
 jobs:
   pr-review:
     runs-on: ubuntu-latest
+    # `secrets` can't be referenced in a step `if:` — only in with/env/run. Surface
+    # the App secret's presence here so the mint/warn steps can gate on it.
+    env:
+      HAS_SECURITY_APP_TOKEN: ${{ secrets.SECURITY_GITHUB_APP_ID != '' && secrets.SECURITY_GITHUB_APP_PRIVATE_KEY != '' }}
     outputs:
       status: ${{ steps.review-status.outputs.result }}
+      recommendation: ${{ steps.verdict.outputs.recommendation }}
+      risk-score: ${{ steps.verdict.outputs.risk-score }}
+      review-required: ${{ steps.verdict.outputs.review-required }}
     permissions:
       contents: read
       pull-requests: write
@@ -83,15 +136,45 @@ jobs:
         echo "PR security review already ran for this commit SHA — skipping to avoid duplicate findings."
         exit 0
 
+    # Mint a short-lived token that can read the private security repo. The
+    # caller's github.token can't (the security repo is private and not the
+    # caller), so the checkout below would 404 on every external caller. Scoped
+    # to the security repo and contents:read only — it never touches the
+    # caller's repo. Skipped when the App secrets aren't passed; the checkout
+    # then falls back to github.token and logs why it will fail, rather than
+    # erroring cryptically.
+    - name: Mint security repo read token
+      id: security-token
+      if: ${{ env.HAS_SECURITY_APP_TOKEN == 'true' }}
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.SECURITY_GITHUB_APP_ID }}
+        private-key: ${{ secrets.SECURITY_GITHUB_APP_PRIVATE_KEY }}
+        owner: <organization>
+        repositories: security
+        permission-contents: read
+
+    - name: Warn if security repo token unavailable
+      if: ${{ steps.security-token.outcome == 'skipped' && github.repository != '<organization>/security' }}
+      run: |
+        echo "::warning title=No security App token::SECURITY_GITHUB_APP_ID / SECURITY_GITHUB_APP_PRIVATE_KEY were not passed to this reusable, so the security script checkout will use github.token and 404 on a private repo. Pass the org secrets — 'secrets: inherit' is easiest. See docs/consuming-pr-review.md."
+
     - name: Checkout security scripts
       uses: actions/checkout@v7
       with:
         repository: <organization>/security
-        token: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
+        # The caller's pinned SHA, so the scripts match the workflow it pinned.
+        # Default main keeps unpinned callers on today's behaviour.
+        ref: ${{ inputs.security-ref }}
+        # App token (reads the security repo) → passed SOURCE_REPO_TOKEN → github.token.
+        # The last only works when the caller IS the security repo (self-checkout).
+        token: ${{ steps.security-token.outputs.token || (secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN) || github.token }}
         path: .security
         sparse-checkout: |
           .github/scripts/pr_reviewer.py
           .github/scripts/sdd_notify.py
+          shared/ai_config.py
+          guides/owasp-guidance.md
         sparse-checkout-cone-mode: false
 
     - name: Set up Python
@@ -101,11 +184,25 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install anthropic requests notion-client PyYAML
+        pip install anthropic==1.4.0 openai==3.41.0 requests notion-client PyYAML
 
     - name: Run PR Security Review
+      id: run-review
+      # Don't let a reviewer crash fail the JOB. pr_reviewer.py exits non-zero on
+      # ~11 paths (bad PR URL, GitHub 401/404, missing env var, Anthropic API
+      # exception), and a failed job makes `needs.*.outputs` unreliable for
+      # callers — precisely the outage case where a merge gate must still see a
+      # verdict. The verdict step below turns any of these into
+      # review-required=true (fail closed), and `Report reviewer failure` re-fails
+      # the job afterwards so the run is still visibly red. Order matters:
+      # outputs are set before the job's conclusion is decided.
+      continue-on-error: true
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Optional AI proxy base URL (repo var); empty = direct to Anthropic.
+        ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+        # Odd PRs: OpenAI direct when no proxy is configured.
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         PR_REVIEW_URL: ${{ inputs.pr-review-url }}
@@ -117,13 +214,21 @@ jobs:
         python .security/.github/scripts/pr_reviewer.py
 
     - name: Notify Security
-      if: success() && inputs.skip-notifications != true
+      # `success()` is no longer sufficient on its own: the review step is
+      # continue-on-error, so a crashed review leaves success() true. Gate on the
+      # step's own outcome too, or a failed run would Slack/Linear a fail-closed
+      # placeholder verdict as if it were a real finding.
+      if: >
+        success() && inputs.skip-notifications != true &&
+        steps.run-review.outcome == 'success'
       env:
         REVIEW_OUTPUT_FILE: pr_review_output.json
         REVIEW_URL: ${{ inputs.pr-review-url }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        # Optional link to your Security triage queue, shown in the Slack post.
+        LINEAR_TRIAGE_URL: ${{ vars.LINEAR_TRIAGE_URL }}
       run: |
         python3 .security/.github/scripts/sdd_notify.py
 
@@ -142,6 +247,59 @@ jobs:
         else
           echo "result=failure" >> $GITHUB_OUTPUT
         fi
+
+    # Machine-readable verdict for callers that gate merges on it. Emitted even
+    # when the review failed: a caller MUST be able to distinguish "reviewed,
+    # not required" from "never produced a verdict", and both must be safe to
+    # gate on. Fails closed — no file, unreadable JSON, or an unrecognized
+    # recommendation all yield Required/true, matching pr_reviewer.py's own
+    # fail-closed posture (a refusal on a security-sensitive diff must not
+    # read as an all-clear).
+    - name: Expose verdict outputs
+      id: verdict
+      if: always()
+      run: |
+        set -uo pipefail
+        rec="Unknown"
+        score=""
+        if [ -f pr_review_output.json ]; then
+          rec=$(jq -r '.security_involvement.recommendation // "Unknown"' pr_review_output.json 2>/dev/null || echo "Unknown")
+          score=$(jq -r '.security_involvement.risk_score // empty' pr_review_output.json 2>/dev/null || echo "")
+        fi
+        case "$rec" in
+          "Not Required"|"Recommended") required=false ;;
+          "Required")                   required=true  ;;
+          *)
+            # Unknown / malformed / absent — fail closed and say so loudly.
+            echo "::warning title=Security verdict unavailable::Could not read a recognized verdict (got '${rec}'); reporting Required so callers fail closed."
+            rec="Required"
+            required=true
+            ;;
+        esac
+        {
+          echo "recommendation=${rec}"
+          echo "risk-score=${score}"
+          echo "review-required=${required}"
+        } >> "$GITHUB_OUTPUT"
+        echo "Verdict: ${rec} (review-required=${required}, risk-score=${score:-n/a})" >> "$GITHUB_STEP_SUMMARY"
+
+    # Re-fail the job when the reviewer crashed. Runs AFTER the verdict step so
+    # the fail-closed outputs are already committed and readable by callers, but
+    # still leaves the run red so a broken review never looks like a clean pass
+    # in Actions. Callers that gate on outputs should use `if: always()` on their
+    # gate job so they see the verdict regardless of this.
+    - name: Report reviewer failure
+      if: always() && steps.run-review.outcome == 'failure'
+      run: |
+        {
+          echo "## Security review did not complete"
+          echo ""
+          echo "\`pr_reviewer.py\` exited non-zero — see the *Run PR Security Review* step."
+          echo "Outputs were still published as \`review-required=true\` (fail closed), so a"
+          echo "caller gating on them stays blocked rather than silently passing."
+        } >> "$GITHUB_STEP_SUMMARY"
+        echo "Reviewer failed; failing the job after publishing fail-closed outputs."
+        exit 1
 
     - name: Upload review results
       uses: actions/upload-artifact@v7

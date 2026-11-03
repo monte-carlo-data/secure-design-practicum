@@ -33,7 +33,7 @@ on:
         required: false
         type: string
       platform_context_path:
-        description: 'Path to platform context markdown (describes MC architecture patterns, multi-tenancy, IAM model)'
+        description: 'Path to platform context markdown (describes your architecture patterns, multi-tenancy, IAM model)'
         required: false
         type: string
       team_questions_path:
@@ -93,11 +93,13 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install anthropic requests notion-client PyYAML
+        pip install anthropic==1.4.0 requests notion-client PyYAML
 
     - name: Run SDD Security Review
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Optional AI proxy base URL (repo var); empty = direct to Anthropic.
+        ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         NOTION_SDD_URL: ${{ inputs.notion_sdd_url || steps.config.outputs.notion_sdd_url }}
@@ -122,6 +124,8 @@ jobs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_WEBHOOK_URL: ${{ secrets.SDD_SLACK_WEBHOOK_URL }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        # Optional link to your Security triage queue, shown in the Slack post.
+        LINEAR_TRIAGE_URL: ${{ vars.LINEAR_TRIAGE_URL }}
       run: |
         python3 .github/scripts/sdd_notify.py
 
@@ -145,7 +149,7 @@ jobs:
 
         BRANCH="sdd-tracking/$(date +%Y%m%d-%H%M%S)"
         git checkout -b "$BRANCH"
-        git add review-software/reviews/TRACKING.md
+        git add reviews/TRACKING.md
 
         if git diff --cached --quiet; then
           echo "No changes to commit"

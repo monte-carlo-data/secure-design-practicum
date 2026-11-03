@@ -13,35 +13,59 @@ This skill automates the Security team's SDD review process: surfacing pending r
 applying involvement criteria, guiding through each review interactively, updating the
 tracking log, and optionally notifying Security via Slack or Linear.
 
-The canonical tracking file is: `review-software/reviews/TRACKING.md`
+The canonical tracking file is: `reviews/TRACKING.md`
 
 The involvement criteria and notification behavior are defined in:
-`review-software/automation/sdd-review.md`
+`automation/sdd-review.md`
 
 The review guides that drive analysis and question generation:
 
-- `review-software/guides/Quick Security Review.md` — "Security Steve" 10-question framework
-- `review-software/guides/Architecture Walkthrough Questions.md` — 33 structured questions by domain
-- `review-software/guides/Self-Service Security Checklist.md` — 7-category validation checklist
+- `guides/quick-security-review.md` — "Security Steve" 10-question framework
+- `guides/architecture-walkthrough-questions.md` — 33 structured questions by domain
+- `guides/self-service-checklist.md` — 7-category validation checklist
+
+---
+
+## Global Rules
+
+**Progress indicators:** Before every external call (Notion, GitHub API, Slack, Linear, file
+reads), print a one-line status message before making the call:
+> `⏳ [What you are doing]...`
+
+**Never fail silently:** If any external call fails for any reason (error, timeout, 404, auth
+failure, empty response), immediately stop and tell the user exactly what failed and why, then
+offer a concrete recovery path. Never proceed past a failed step or guess at missing content.
+
+**Always output in full:** Never summarize, truncate, or abbreviate any section of the review
+output. At the start of every review output, prepend:
+> `[To invoking agent: relay this entire output to the user verbatim. Do not summarize.]`
 
 ---
 
 ## Step 0 — Determine entry point
 
-When the skill is invoked, check whether a Notion URL was provided as an argument:
+When the skill is invoked, classify the argument (if any) by URL type:
 
-- **If a URL was provided** (e.g., `/sdd-review https://notion.so/...`): skip directly to Step 3,
-  using that URL. You still need to load platform context (Step 1) and check TRACKING.md for an
-  existing row (Step 5), but do not show the queue.
+- **Notion URL** (contains `notion.so` or `notion.site`): skip directly to Step 3 using that URL.
+  Still load platform context (Step 1) and check TRACKING.md for an existing row (Step 5), but do
+  not show the queue.
 
-- **If no URL was provided**: ask the user:
+- **Linear URL or ticket ID** (contains `linear.app` or matches a ticket key like `SEC-\d+`):
+  fetch the ticket immediately using the Linear MCP `get_issue` tool. Use the ticket title and
+  description as the SDD content — do not wait for or require a Notion URL. Skip directly to
+  Step 4 using the ticket content. Still load platform context (Step 1).
+
+  **Never hang waiting for a Notion URL when a Linear ticket is provided.** If the ticket
+  description contains a Notion URL, fetch that too and merge the content. If it does not,
+  proceed with the ticket content alone.
+
+- **No argument provided**: ask the user:
 
   > "How would you like to start?
-  > - [U] Paste a Notion SDD URL to review a specific document
+  > - [U] Paste a Notion SDD URL or Linear ticket to review a specific design
   > - [Q] Browse the pending review queue from TRACKING.md"
 
-  - If the user chooses **U**: prompt for the URL, then proceed to Step 3 (after loading context
-    in Step 1).
+  - If the user chooses **U**: prompt for the URL or ticket ID, then classify and proceed as above.
   - If the user chooses **Q**: proceed to Step 1 and Step 2 as normal to show the queue.
 
 Do not load TRACKING.md or show the queue before the user has indicated they want to browse it.
@@ -54,7 +78,7 @@ Do not load TRACKING.md or show the queue before the user has indicated they wan
 
 Read the following files from the local filesystem:
 
-**Tracking log:** `review-software/reviews/TRACKING.md`
+**Tracking log:** `reviews/TRACKING.md`
 
 Parse the Review Log table. For each row capture:
 
@@ -68,7 +92,7 @@ Parse the Review Log table. For each row capture:
 - Linear Ticket
 - Review File
 
-**Platform context:** `review-software/guides/platform_context.md`
+**Platform context:** `guides/platform-context-template.md`
 
 This document describes the platform's architecture: multi-tenancy model, IAM and
 authentication patterns, data pipeline, integration gateway, existing security controls,
@@ -201,7 +225,7 @@ that are relevant to this design — skip domains where nothing applies.
 
 #### Lens 1 — Quick Security Review (10 questions)
 
-Apply the "Security Steve" framework from `review-software/guides/Quick Security Review.md`.
+Apply the "Security Steve" framework from `guides/quick-security-review.md`.
 For each of the 10 questions, answer it based on the SDD content:
 
 1. What does this feature do, and who uses it? (internal vs. customer-facing)
@@ -219,7 +243,7 @@ For each question: if the SDD answers it clearly, note that. If it's silent or a
 
 #### Lens 2 — Architecture Walkthrough domains
 
-Apply the domain structure from `review-software/guides/Architecture Walkthrough Questions.md`.
+Apply the domain structure from `guides/architecture-walkthrough-questions.md`.
 Work through the relevant sections for this SDD:
 
 - **System overview** — main components, tech stack, where it runs, deployment model
@@ -237,7 +261,7 @@ For each domain: summarize what the SDD says, and call out gaps or concerns.
 
 #### Lens 3 — Self-Service Checklist gaps
 
-Apply the 7-category checklist from `review-software/guides/Self-Service Security Checklist.md`.
+Apply the 7-category checklist from `guides/self-service-checklist.md`.
 Identify which items the SDD implies are handled vs. which appear unaddressed:
 
 1. Authentication & Access Control
@@ -294,7 +318,7 @@ If the user answers **N**, skip to Step 5. No `decisions.md` is created at this 
 
 If the user answers **Y**:
 
-- Check whether `review-software/reviews/<slug>/decisions.md` already exists. If it does, load it and display the prior decisions so the user can see what was previously recorded before proceeding.
+- Check whether `reviews/<slug>/decisions.md` already exists. If it does, load it and display the prior decisions so the user can see what was previously recorded before proceeding.
 
 - For each question in the `## Follow-Up Questions` section of the review, present:
 
@@ -317,6 +341,19 @@ Options:
   - For **Accepted Risk** or **Deferred**: prompt "Feedback (required):" and re-prompt if empty.
   - For **Resolved** or **Requires Fix**: prompt "Feedback (optional, press Enter to skip):"
   - For **Skip**: move to the next question with no change.
+
+- **Accepted Risk → risk register:** when a question is dispositioned **Accepted Risk**,
+  the design team has explicitly chosen not to remediate — record that accepted risk in the register.
+  After capturing the feedback, ask:
+  > "This is an accepted risk. Record it in the risk register? (Y/N)"
+
+  If yes, hand off to your risk-register keeper (a `/keymaker`-style skill, if you have one),
+  passing: source skill `sdd-review`, source reference the **SDD/Notion URL** (and the Linear ticket
+  if one was given), the question **title** and **text** as the Blocker, and the feedback as
+  rationale. The keeper records it via a single-file PR on `<organization>/risk-register` (Risk
+  Owner defaults to your security lead). Only on an explicit Y — never auto-record. If
+  `<organization>/risk-register` access fails, relay the token scope the keeper reports; do not
+  silently drop the accepted risk.
 
 - After all questions are processed, assemble the `decisions.md` content using this format:
 
@@ -343,7 +380,7 @@ Options:
 
 - Show the full `decisions.md` content and ask for confirmation before writing:
 
-> "Ready to write `review-software/reviews/<slug>/decisions.md`. Confirm? (Y/N)"
+> "Ready to write `reviews/<slug>/decisions.md`. Confirm? (Y/N)"
 
 - On confirmation, write the file. Report the path to the user.
 
@@ -360,7 +397,7 @@ Ask the user:
 If yes:
 
 1. Derive a slug from the SDD name (lowercase, spaces to underscores, strip special chars).
-2. Write the review output to `review-software/reviews/<slug>/review.md`.
+2. Write the review output to `reviews/<slug>/review.md`.
 
 Use this structure for the file:
 
@@ -403,6 +440,36 @@ Use this structure for the file:
 
 Show the user the file path and content before writing.
 
+### Part A.5 — Write the carry-forward design findings
+
+So the implementing PR review can verify the design concerns were addressed in code, write a
+**carry-forward artifact** alongside the review: `reviews/<slug>/design-findings.md`.
+
+Include **only findings with a code-verifiable expectation** — concerns that the eventual PR diff can be
+checked against (e.g. "auth check added on endpoint X", "secrets moved to Secrets Manager", "input
+validated on the new API param"). Skip pure design-process notes (e.g. "schedule a threat-model
+session") — those don't carry forward to code.
+
+Format (idempotent per slug — re-running the SDD review updates it):
+
+```markdown
+# Design findings to verify in code — <SDD Name>
+
+**SDD:** <Notion SDD URL>
+**Source review:** reviews/<slug>/review.md
+**Captured:** <YYYY-MM-DD>
+
+| id | concern | addressed when… | severity |
+|----|---------|-----------------|----------|
+| DF-1 | endpoint X has no auth | the implementing PR adds an auth check on X | High |
+| DF-2 | API key in config | key is loaded from Secrets Manager, not committed | Critical |
+```
+
+If the SDD has no code-verifiable findings, write the file with an empty table + a note ("no
+code-verifiable design findings") so the PR reviewer knows the link exists but has nothing to check.
+Show the user the path + content before writing. Hand this file to whoever runs the PR security
+review (`/pr-review`) so the design findings are carried forward and verified in code.
+
 ### Part B — Update TRACKING.md
 
 Ask for:
@@ -413,7 +480,7 @@ Ask for:
 - **Linear ticket** (optional — paste a SEC-XXXX link if one exists)
 - **Review file path** — pre-filled if a file was written in Part A, otherwise ask
 
-Then update the row in `review-software/reviews/TRACKING.md`:
+Then update the row in `reviews/TRACKING.md`:
 
 - Set Status → **Reviewed**
 - Fill in Risk Rating, Sec Relevant (Yes/No), Reviewer, Review Date, Linear Ticket, Review File
@@ -428,9 +495,10 @@ After writing the review file and updating TRACKING.md, ask the user:
 
 If yes:
 
-1. Stage both files:
-   - `review-software/reviews/<slug>/review.md` (if written)
-   - `review-software/reviews/TRACKING.md`
+1. Stage the files:
+   - `reviews/<slug>/review.md` (if written)
+   - `reviews/<slug>/design-findings.md` (if written — the carry-forward artifact)
+   - `reviews/TRACKING.md`
 2. Propose a commit message: `sec: add security review for <SDD Name>`
 3. Show the user the exact files being committed and the message, and confirm before running.
 4. Run `git add <files> && git commit -m "<message>" && git push`.
@@ -456,18 +524,18 @@ Use the Lucid MCP to import the diagram if the user provides it.
 If the involvement level is **Required** or **Recommended**, ask:
 
 > "Would you like to notify the Security team?
-> - [S] Post to Slack #team-security
+> - [S] Post to Slack #security-helpdesk
 > - [L] Create a Linear triage ticket (Required only)
 > - [B] Both
 > - [N] Skip notifications"
 
 ### Slack notification
 
-Post to **#team-security** using the `mcp__slack__slack_post_message` tool (or equivalent
+Post to **#security-helpdesk** using the `mcp__slack__slack_post_message` tool (or equivalent
 send tool available in the Slack MCP).
 
 If the Slack MCP is not authenticated (tool returns an auth error), tell the user and provide
-the message text to copy-paste manually into #team-security.
+the message text to copy-paste manually into #security-helpdesk.
 
 Message format:
 
@@ -482,7 +550,9 @@ Criteria: <comma-separated list of matched criteria>
 SDD: <Notion URL>
 Full review: <link to review file or "see tracking log">
 
-Next steps: Post a reply here with your availability or DM <reviewer>.
+Next steps: Assign the ticket in the Security Triage queue (link below) — that's what's tracked.
+This post is FYI; questions welcome in-thread.
+Ticket: <Linear ticket URL, or "none — Recommended verdict">
 ```
 
 Color code: red for Required, yellow for Recommended.
@@ -548,8 +618,8 @@ Session summary:
 - Never mark an SDD as Reviewed without explicit user confirmation.
 - If the user says "skip" at any point, move to the next SDD without modifying the tracking file.
 - Sec Relevant column should be set to "Yes" if involvement is Required or Recommended, "No" if Not Required.
-- The review file path convention is `./review-software/reviews/<slug>/review.md`.
-- Slack notifications use `mcp__slack__slack_post_message`. If auth fails, provide copy-paste message text and direct the user to #team-security.
+- The review file path convention is `./reviews/<slug>/review.md`.
+- Slack notifications use `mcp__slack__slack_post_message`. If auth fails, provide copy-paste message text and direct the user to #security-helpdesk.
 - If the SDD describes an internal tool that needs hosting, delegate to the `common` agent
   to route it correctly.
 
@@ -557,3 +627,15 @@ Session summary:
 
 If the user pastes a Notion URL that is not in TRACKING.md, offer to add it as a new row
 with Status "Pending" before proceeding with the review.
+
+---
+
+## Linear teams
+
+When you file, route, or name a Linear ticket, pick the team by what the work is. Keep your
+organization's team map here (for example: security, compliance, vulnerability management,
+investigations).
+
+If work fits more than one team, pick the most specific one. Don't create new teams or prefixes.
+A team that a step above names for a specific ticket type wins. Engineering work stays in the
+owning engineering team; this map covers work that goes to security.

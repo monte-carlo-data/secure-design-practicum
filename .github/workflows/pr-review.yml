@@ -1,6 +1,10 @@
 name: PR Security Review
 
 on:
+  # Auto-trigger on pull_request is disabled: a model refusal on a benign PR
+  # fails closed to "Required" and files a ticket nobody needs. Runs on manual
+  # dispatch only. Re-add a trigger like the one below to restore it:
+  #
   # pull_request:
   #   types: [opened, synchronize, reopened]
   #   paths:
@@ -30,6 +34,13 @@ on:
 
 jobs:
   pr-review:
+    # Dependabot-triggered runs use the restricted Dependabot secret store and
+    # cannot read ANTHROPIC_API_KEY (et al.), so the review step always fails
+    # with "Missing required env var". Skip them: dependency/action bumps carry
+    # no reviewable application logic, and SHA pins are verified out of band.
+    # Granting Dependabot the API key instead would widen the attack surface on
+    # this write-enabled, PR-triggered workflow.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,23 +69,27 @@ jobs:
         echo "PR security review already ran for this commit SHA — skipping to avoid duplicate findings."
         exit 0
 
-    - name: Load config from file (PR trigger)
+    - name: Load config from file or PR event (PR trigger)
       id: config
       if: github.event_name == 'pull_request'
+      env:
+        # Auto-trigger fallback: when no config file is committed, review the
+        # PR that fired the event.
+        EVENT_PR_URL: ${{ github.event.pull_request.html_url }}
       run: |
         CONFIG_FILE=".github/pr-review-config.yml"
-        if [ ! -f "$CONFIG_FILE" ]; then
-          echo "::error::Missing .github/pr-review-config.yml"
-          exit 1
-        fi
 
         python3 -c "
         import yaml, os, sys
-        with open('$CONFIG_FILE') as f:
-            cfg = yaml.safe_load(f) or {}
-        pr_review_url = cfg.get('pr_review_url', '') or ''
+        cfg = {}
+        if os.path.isfile('$CONFIG_FILE'):
+            with open('$CONFIG_FILE') as f:
+                cfg = yaml.safe_load(f) or {}
+        # Explicit target from the config file wins; otherwise fall back to the
+        # PR that triggered this run (the path-scoped auto-trigger case).
+        pr_review_url = (cfg.get('pr_review_url', '') or '').strip() or os.environ.get('EVENT_PR_URL', '').strip()
         if not pr_review_url:
-            print('::error::pr_review_url is required in .github/pr-review-config.yml')
+            print('::error::No pr_review_url: config file absent/empty and no PR event URL available')
             sys.exit(1)
         out = os.environ['GITHUB_OUTPUT']
         with open(out, 'a') as gh:
@@ -91,11 +106,15 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install anthropic requests notion-client PyYAML
+        pip install anthropic==1.4.0 openai==3.41.0 requests notion-client PyYAML
 
     - name: Run PR Security Review
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Optional AI proxy base URL from a repo variable; empty = direct to Anthropic.
+        ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+        # Odd PRs are reviewed by OpenAI: called direct with this key when no proxy is configured.
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN != '' && secrets.SOURCE_REPO_TOKEN || github.token }}
         PR_REVIEW_URL: ${{ inputs.pr_review_url || steps.config.outputs.pr_review_url }}

@@ -5,37 +5,54 @@
 #
 # Notes:
 #   - Hosted Linear MCP uses OAuth.
-#   - URL: https://mcp.linear.app/sse
+#   - Transport: streamable HTTP at https://mcp.linear.app/mcp. The older SSE
+#     endpoint (/sse) breaks OAuth with "Protected resource https://mcp.linear.app/mcp
+#     does not match expected https://mcp.linear.app/sse" — Linear advertises its
+#     protected resource as /mcp, so the configured URL must match.
 
 set -euo pipefail
 
-LINEAR_MCP_URL="https://mcp.linear.app/sse"
+LINEAR_MCP_URL="https://mcp.linear.app/mcp"
 
 echo "Checking prerequisites..."
 if ! command -v codex >/dev/null 2>&1; then
-    echo "Error: codex CLI not found. Run .setup/vscode-codex.sh first."
+    echo "  codex : not found, skipping Codex setup."
+    SKIP_CODEX=true
+else
+    echo "  codex : $(codex --version 2>/dev/null || echo 'installed')"
+    SKIP_CODEX=false
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+    echo "  claude: not found, skipping Claude setup."
+    SKIP_CLAUDE=true
+else
+    echo "  claude: $(claude --version 2>/dev/null || echo 'installed')"
+    SKIP_CLAUDE=false
+fi
+
+if [[ "$SKIP_CODEX" == "true" && "$SKIP_CLAUDE" == "true" ]]; then
+    echo "Error: neither codex nor claude CLI is available."
     exit 1
 fi
 
-echo "  codex: $(codex --version 2>/dev/null || echo 'installed')"
+if [[ "$SKIP_CODEX" == "false" ]]; then
+    echo ""
+    echo "Configuring Linear MCP for Codex..."
 
-echo ""
-echo "Configuring Linear MCP for Codex..."
+    # Remove existing definition to keep config idempotent.
+    codex mcp remove linear >/dev/null 2>&1 || true
+    codex mcp add linear --url "$LINEAR_MCP_URL"
 
-# Remove existing definition to keep config idempotent.
-codex mcp remove linear >/dev/null 2>&1 || true
-codex mcp add linear --url "$LINEAR_MCP_URL"
-
-echo ""
-echo "Codex MCP status:"
-codex mcp get linear || true
-codex mcp list || true
+    echo ""
+    echo "Codex MCP status:"
+    codex mcp get linear || true
+    codex mcp list || true
+fi
 
 echo ""
 echo "Configuring Linear MCP for Claude Code..."
-if ! command -v claude >/dev/null 2>&1; then
-    echo "Claude CLI not found, skipping Claude setup."
-else
+if [[ "$SKIP_CLAUDE" == "false" ]]; then
     if [[ -n "${CLAUDE_MCP_SCOPE:-}" ]]; then
         SCOPE_CHOICE="${CLAUDE_MCP_SCOPE}"
     elif [[ -t 0 ]]; then
@@ -58,7 +75,7 @@ else
     esac
 
     claude mcp remove linear --scope "$SCOPE" >/dev/null 2>&1 || true
-    claude mcp add --transport sse --scope "$SCOPE" linear "$LINEAR_MCP_URL"
+    claude mcp add --transport http --scope "$SCOPE" linear "$LINEAR_MCP_URL"
 
     echo ""
     echo "Claude MCP status:"

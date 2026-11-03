@@ -34,6 +34,19 @@ import ai_config
 import anthropic
 import requests
 
+# The ticket rule lives with the code that files the ticket; the review
+# comment imports it so the banner can't promise a ticket that isn't filed.
+from sdd_notify import CRITICAL_RISK_THRESHOLD, is_critical
+
+# Extended thinking shares max_tokens with the JSON body. At the highest
+# effort the model can spend the whole budget thinking and never finish the
+# JSON; the SDD prompt asks for far more output than the PR one, so it runs
+# at high, and an overrun retries at medium.
+REVIEW_EFFORT = "high"
+BUDGET_RETRY_EFFORT = "medium"
+REVIEW_MAX_TOKENS = 64000
+REVIEW_ATTEMPTS = 3
+
 
 # File extensions we consider useful source code context
 CODE_EXTENSIONS = {
@@ -54,6 +67,18 @@ MAX_FILE_CONTENT = 4000
 
 # Total source context cap
 MAX_SOURCE_CONTEXT = 30000
+
+AGENTIC_SIGNALS = [
+    "mcp", "tool_use", "tool_call", "anthropic", "claude",
+    "agentic", "service_account", "api_key", "oauth_client",
+    "non_human", "non-human", "nhi",
+]
+
+
+def is_agentic_or_nhi(text: str) -> bool:
+    """Return True if the text contains signals of agentic AI or NHI patterns."""
+    lower = text.lower()
+    return any(signal in lower for signal in AGENTIC_SIGNALS)
 
 
 class NotionReader:
@@ -511,13 +536,56 @@ class RiskRegisterClient:
         return "\n".join(lines)
 
 
+def _model_declined_result(stop_reason: Optional[str], content: str) -> Dict[str, Any]:
+    """Fail-closed review when the model refuses or no attempt gave usable output.
+
+    Mirrors pr_reviewer's posture: a missing automated verdict must
+    route to Required with an honest summary, never a soft or absent verdict.
+    No risk score, so sdd_notify treats it as Critical and files a ticket.
+    """
+    if stop_reason == "refusal":
+        summary = ("The model **declined to respond** to this design (stop_reason=refusal). "
+                   "Escalated to Required for mandatory human review — not softened.")
+    elif stop_reason == "max_tokens":
+        summary = ("The model ran out of output budget before finishing its review "
+                   f"(stop_reason=max_tokens), and {REVIEW_ATTEMPTS} attempts produced no usable "
+                   "review. Escalated to Required for mandatory human review.")
+    elif not (content or "").strip():
+        summary = ("The model returned an **empty response** — no review could be produced. "
+                   "Escalated to Required for mandatory human review.")
+    else:
+        summary = ("The model's response **could not be parsed** as a review result. "
+                   "Escalated to Required for mandatory human review.")
+    return {
+        "sdd_title": "Unknown",
+        "risk_summary": summary,
+        "security_involvement": {
+            "recommendation": "Required",
+            "rationale": "Automated review produced no usable verdict; failing closed to Required.",
+            "trigger_criteria": ["Automated review unavailable — human review mandatory"],
+            "likelihood": None,
+            "impact": None,
+            "risk_score": None,
+            "intake_note": "",
+        },
+        "questions": [{
+            "number": 1,
+            "question": "Manual review required — the automated reviewer produced no usable verdict.",
+            "why_it_matters": "A missing automated verdict on a security review must fail closed to human review.",
+            "security_area": "General",
+        }],
+        "data_classification": [],
+        "compliance_considerations": [],
+        "incident_scenarios": [],
+        "team_question_responses": [],
+    }
+
+
 class SDDReviewer:
     """Reviews an SDD and generates security questions."""
 
     def __init__(self):
-        self.anthropic_client = anthropic.Anthropic(
-            api_key=os.getenv("ANTHROPIC_API_KEY")
-        )
+        self.anthropic_client = ai_config.make_client("claude")
         self.github_token = os.getenv("GITHUB_TOKEN")
         self.repo_name = os.getenv("REPO_FULL_NAME", "")
         self.pr_number = os.getenv("PR_NUMBER", "")
@@ -552,6 +620,7 @@ class SDDReviewer:
         platform_context: Optional[str] = None,
         team_questions: Optional[str] = None,
         accepted_risks: Optional[str] = None,
+        owasp_guidance: Optional[str] = None,
     ) -> str:
         """Build the Claude prompt for SDD review."""
 
@@ -619,6 +688,15 @@ The engineering team specifically wants these questions addressed in the review.
 The following risks have been formally evaluated and accepted by the business. Do NOT generate security questions, findings, or recommendations that overlap with these accepted risks. They have already been reviewed and the residual risk has been explicitly accepted. Focus your review on risks NOT covered below:
 
 {accepted_risks[:5000]}
+
+"""
+
+        if owasp_guidance:
+            prompt += f"""## OWASP Guidance — Agentic & NHI Frameworks
+
+This SDD contains signals of agentic AI patterns (tool-use, MCP, Claude API) or non-human identities (service accounts, API keys, OAuth clients). Apply the following OWASP frameworks when generating security questions — prioritize threats from these lists that are relevant to this design:
+
+{owasp_guidance[:6000]}
 
 """
 
@@ -743,7 +821,7 @@ Format your entire response as JSON:
     "likelihood": 3,
     "impact": 4,
     "risk_score": 12,
-    "intake_note": "What the team should do next — informational only, not a blocker (e.g. post in #team-security with the SDD link, or proceed without security review)"
+    "intake_note": "What the doc author should do next — informational only, not a blocker. Intake is a Security Linear ticket, never a Slack post — for Required with risk_score >= {CRITICAL_RISK_THRESHOLD} a ticket is filed automatically, so say to track it in the Security team's Triage queue in Linear; for Required below that no ticket is filed, so say to answer the questions on the review and open a ticket in that queue if they want Security involved; for Recommended they may open one. Slack (#security-helpdesk) is for questions only. Otherwise, proceed without security review."
   },
   "questions": [
     {
@@ -787,51 +865,36 @@ Format your entire response as JSON:
   "architecture_diagram_ascii": "ASCII text diagram with box-drawing characters"
 }
 ```
-"""
+""".replace("{CRITICAL_RISK_THRESHOLD}", str(CRITICAL_RISK_THRESHOLD))
         return prompt
 
     def call_anthropic(self, prompt: str) -> Dict[str, Any]:
-        """Send prompt to Claude and parse the response."""
+        """Send prompt to Claude; retry recoverable failures, then fail closed.
+
+        ai_config.stream_json_reply retries an exhausted output budget, an empty
+        or unparseable reply, and transient API errors. A refusal
+        gets a server-side fallback model; one that survives it, or retries
+        that never produce JSON, fail closed to Required. A non-transient API
+        error exits non-zero.
+        """
         try:
-            response = self.anthropic_client.messages.create(
+            reply = ai_config.stream_json_reply(
+                self.anthropic_client,
+                attempts=REVIEW_ATTEMPTS,
+                budget_retry_effort=BUDGET_RETRY_EFFORT,
                 model=ai_config.PRIMARY_MODEL,
-                max_tokens=16000,
-                temperature=0.2,
+                max_tokens=REVIEW_MAX_TOKENS,
+                output_config={"effort": REVIEW_EFFORT},
+                betas=[ai_config.REFUSAL_FALLBACK_BETA],
+                fallbacks="default",
                 messages=[{"role": "user", "content": prompt}],
             )
-
-            content = response.content[0].text
-
-            if "```json" in content:
-                json_start = content.find("```json") + 7
-                json_end = content.find("```", json_start)
-                json_str = content[json_start:json_end].strip()
-            else:
-                json_match = re.search(r"\{[\s\S]*\}", content)
-                json_str = json_match.group(0) if json_match else content
-
-            return json.loads(json_str)
-
-        except json.JSONDecodeError:
-            return {
-                "sdd_title": "Unknown",
-                "risk_summary": "Could not parse AI response",
-                "questions": [
-                    {
-                        "number": 1,
-                        "question": "Manual review required - automated analysis could not parse results",
-                        "why_it_matters": "The automated review encountered an issue",
-                        "security_area": "General",
-                    }
-                ],
-                "data_classification": [],
-                "compliance_considerations": [],
-                "incident_scenarios": [],
-                "team_question_responses": [],
-            }
-        except Exception as e:
-            print(f"Error calling Anthropic API: {e}")
+        except anthropic.APIError as e:
+            print(f"Error calling Anthropic API: {type(e).__name__}: {e}")
             sys.exit(1)
+        if reply.data is not None:
+            return reply.data
+        return _model_declined_result(reply.stop_reason, reply.text)
 
     def format_markdown(self, result: Dict[str, Any]) -> str:
         """Format review results as markdown."""
@@ -845,9 +908,34 @@ Format your entire response as JSON:
         ascii_diagram = result.get("architecture_diagram_ascii", "")
         involvement = result.get("security_involvement", {})
 
+        # sdd_notify files a Linear ticket only for Critical Required findings,
+        # so the banner says which case this is.
+        if is_critical(involvement):
+            ticket_line = (
+                "A ticket has been filed automatically in the Security team's Triage queue in Linear "
+                "for this SDD; the team picks it up from there before implementation proceeds. "
+                "Track it on the ticket — no need to post anywhere."
+            )
+            ask_suffix = " and reference the ticket."
+        else:
+            ticket_line = (
+                f"The risk score is below the Critical threshold ({CRITICAL_RISK_THRESHOLD}/25), so "
+                "no Security ticket is filed automatically. Work through the questions below; if you "
+                "want Security involved, open one in the Security team's Linear queue."
+            )
+            ask_suffix = "."
         involvement_banners = {
-            "Required": "> **SECURITY REVIEW: REQUIRED** — Post this SDD in #team-security before implementation proceeds.",
-            "Recommended": "> **SECURITY REVIEW: RECOMMENDED** — Consider posting this SDD in #team-security for a lightweight review.",
+            "Required": (
+                f"> **SECURITY REVIEW: REQUIRED** — {ticket_line}\n"
+                ">\n"
+                "> Have a question, or is this time-sensitive? Ask in #security-helpdesk"
+                f"{ask_suffix}"
+            ),
+            "Recommended": (
+                "> **SECURITY REVIEW: RECOMMENDED** — Not a blocker. If you want a lightweight review, "
+                "open a ticket in the Security team's Linear queue; for a quick question, ask in "
+                "#security-helpdesk."
+            ),
             "Not Required": "> **SECURITY REVIEW: NOT REQUIRED** — This design does not meet the criteria for Security team involvement.",
         }
 
@@ -1105,6 +1193,17 @@ def main():
         accepted_risks = risk_client.fetch_accepted_risks()
         accepted_risks_text = risk_client.format_for_prompt(accepted_risks)
 
+    # Detect agentic / NHI signals and inject OWASP guidance if relevant
+    owasp_guidance = None
+    if is_agentic_or_nhi(sdd_content + sdd_title):
+        print("Agentic/NHI signals detected — loading OWASP guidance...")
+        owasp_path = Path(__file__).parent.parent.parent / "guides" / "owasp-guidance.md"
+        if owasp_path.exists():
+            owasp_guidance = owasp_path.read_text(encoding="utf-8", errors="ignore")
+            print(f"  Loaded OWASP guidance: {len(owasp_guidance)} chars")
+        else:
+            print(f"  Warning: owasp-guidance.md not found at {owasp_path}; continuing without it")
+
     # 3. Build prompt and call Claude
     print("Generating security review...")
     prompt = reviewer.build_prompt(
@@ -1117,6 +1216,7 @@ def main():
         platform_context=platform_context,
         team_questions=team_questions,
         accepted_risks=accepted_risks_text,
+        owasp_guidance=owasp_guidance,
     )
 
     print(f"Prompt size: {len(prompt)} chars")

@@ -178,7 +178,7 @@ Compare this against security documentation best practices and identify:
 
 ### Step 1: Initial Assessment
 ```
-I'm building an internal tool called "Transparent Trust" for [purpose].
+I'm building an internal tool called "[App Name]" for [purpose].
 Here's the basic architecture: [description]
 What security considerations should I be thinking about?
 ```

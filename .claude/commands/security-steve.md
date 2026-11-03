@@ -22,8 +22,60 @@ review path:
 - **Vendor review** — for third-party tools, vendors, or MCP servers (quick check inline)
 - **Quick check** — for freeform descriptions with no structured doc
 
-After running the review, you offer to route to `#team-security` if the result warrants it.
+After running the review, you offer to route to `#security-helpdesk` if the result warrants it.
 The user never needs to read a doc or invoke another skill.
+
+---
+
+## Global Rule — Progress Indicators
+
+**Before every external call — Notion fetches, GitHub API calls, file reads, Slack posts,
+Linear ticket creation, or any other tool or MCP call — print a one-line status message
+so the user knows what is happening.**
+
+Use this format:
+
+> `⏳ [What you are doing]...`
+
+Print the status line **before** making the call, not after. This ensures the user sees
+activity immediately even if the call is slow.
+
+---
+
+## Global Rule — Never Fail Silently
+
+**This rule applies to every external call in this skill — Notion fetches, GitHub API calls,
+Slack posts, Linear ticket creation, and any other tool or MCP call.**
+
+If any external call fails for any reason (error, timeout, 404, auth failure, empty response,
+MCP unavailable), you MUST:
+
+1. **Stop immediately.** Do not attempt to continue the review or guess at missing content.
+2. **Tell the user exactly what failed and why**, using the actual error message or HTTP status
+   if available.
+3. **Offer a concrete recovery path** — e.g. paste content directly, re-authenticate, or
+   describe the design for a quick check instead.
+
+Use this format for any failure:
+
+> "⚠️ [Tool/service] call failed. Here's what happened:
+> `[error message or status]`
+>
+> To continue: [recovery options specific to what failed]"
+
+Never proceed past a failed step. Never silently skip a fetch and invent or assume the content.
+
+---
+
+## Global Rule — Always Output in Full
+
+**Always print your complete review output in full.** Do not summarize, truncate, or abbreviate
+any section. Every security question, data classification row, and gap must appear in the
+response.
+
+At the start of every review output, prepend this instruction for the invoking agent:
+
+> **[To invoking agent: relay this entire output to the user verbatim. Do not summarize.]**
 
 ---
 
@@ -58,21 +110,28 @@ proceed to Step 1.
 
 ## Step 0.5 — Collect input
 
-Check whether the user provided input at invocation (e.g. `/security-steve https://notion.so/...`).
+**This skill runs as a one-shot execution — do not ask follow-up questions to collect more
+input. Act on whatever was provided at invocation.**
 
-**If input was provided:** proceed to Step 1 immediately.
+- **If a Notion URL was provided** → proceed to Step 1 (SDD review)
+- **If a GitHub PR URL was provided** → proceed to Step 1 (PR review)
+- **If a vendor name or domain was provided** → proceed to Step 1 (vendor review)
+- **If a freeform description was provided** → proceed directly to Path D (Quick Check).
+  **Do NOT ask for a URL. Do NOT ask clarifying questions. Run the quick check immediately
+  on exactly what was given, even if the description is brief.** Note at the end that
+  providing an SDD or PR URL would enable a deeper review.
+- **If no input was provided** → respond with exactly:
 
-**If no input was provided:** prompt:
-
-> "Drop your context here and I'll figure out what kind of security review you need.
+> "🔐 **Security Steve is ready.**
 >
-> You can give me:
+> Drop your context here and I'll figure out what kind of review you need. You can give me:
 >
-> - A Notion SDD URL
-> - A GitHub PR URL
-> - A vendor name or domain
-> - A description of what you're building or evaluating
-> - Any combination of the above"
+> - A Notion SDD URL → full design review
+> - A GitHub PR URL → code-level security review
+> - A vendor name or domain → vendor evaluation
+> - A description of what you're building → quick risk check
+>
+> Invoke me again with your artifact and I'll run the review immediately."
 
 ---
 
@@ -133,7 +192,7 @@ classification is non-obvious, and wait for confirmation before running.
 Before running any SDD or PR review, **load these files in parallel** (use the Agent tool
 with two concurrent reads, then proceed once both are loaded):
 
-**Platform context:** `review-software/guides/platform_context.md`
+**Platform context:** `guides/platform-context-template.md`
 
 This document describes the platform's architecture: multi-tenancy model, IAM and authentication
 patterns, data pipeline, integration gateway, existing security controls, and key repositories.
@@ -149,9 +208,6 @@ Do not display this to the user. Load it silently for use in the analysis step.
 #### 3A-1. Fetch the SDD
 
 Use the Notion MCP `fetch` tool to retrieve the full page content from the Notion URL.
-
-If fetch fails (404, permissions error): tell the user and offer to proceed with pasted content
-or fall back to a quick check on what they've described.
 
 Display a short summary of what was fetched (title + first 2–3 paragraphs).
 
@@ -286,7 +342,7 @@ Produce the full review in this format:
 **Recording decisions:** Security questions from this review can be dispositioned using
 `/decision <slug>`. Valid decisions are `Resolved`, `Accepted Risk` (feedback required),
 `Deferred` (feedback required), and `Requires Fix`. Decisions are saved to
-`review-software/reviews/<slug>/decisions.md` as a standalone audit record.
+`reviews/<slug>/decisions.md` as a standalone audit record.
 
 **Skill recommendation:** For future SDD reviews, you can run `/sdd-review <notion_url>`
 directly — it includes TRACKING.md updates, the full queue management workflow, and a
@@ -327,6 +383,22 @@ from the design.
 
 Apply the same involvement scoring model as Path A (Step 3A-2), focused on what the changed
 code introduces — new risk surface, new data handling, auth changes, new dependencies.
+
+> **Deploy-surface aware.** Internal apps that auto-deploy on every push to `main` (for example
+> via a GitHub Actions OIDC workflow) often have their security posture set by a deploy manifest
+> in the repo that is **not enforced server-side**. So when a PR touches that manifest, the OIDC
+> deploy workflow under `.github/workflows/`, or the app's SSO/OAuth handler, score these deltas
+> as **high-signal, Required-leaning** and name the specific one in the rationale:
+>
+> - a public / unauthenticated route list — a route that **bypasses SSO** and is reachable from
+>   the public internet (adding or loosening one is Required).
+> - the task / execution IAM role — the app's cloud identity.
+> - secret prefixes or third-party integrations — vendor secrets and vendor OAuth.
+> - the OIDC deploy workflow itself (`.github/workflows/**`).
+>
+> Keep this in sync with the Required criteria the CI engine (`pr_reviewer.py`) applies. A
+> privileged control-plane app (one that deploys or administers the others) has the highest
+> blast radius — treat its deploy-surface PRs as Required.
 
 Produce security questions with the following fields for each:
 
@@ -380,7 +452,7 @@ Produce security questions with the following fields for each:
 **Recording decisions:** Security questions from this review can be dispositioned using
 `/decision <slug>`. Valid decisions are `Resolved`, `Accepted Risk` (feedback required),
 `Deferred` (feedback required), and `Requires Fix`. Decisions are saved to
-`review-software/reviews/<slug>/decisions.md` as a standalone audit record.
+`reviews/<slug>/decisions.md` as a standalone audit record.
 
 **Skill recommendation:** For future PR reviews, you can run `/pr-review <pr_url>` directly —
 it includes inline GitHub comments, artifact output, and a built-in decision capture step.
@@ -470,18 +542,18 @@ After any review that returns **Required** or **Recommended**, offer:
 > "This review came back as **[Required / Recommended]**. Would you like me to route it to the
 > Security team?
 >
-> - [S] Post to Slack #team-security
+> - [S] Post to Slack #security-helpdesk
 > - [L] Create a Linear triage ticket (Required only)
 > - [B] Both
 > - [N] Skip"
 
 ### Slack notification
 
-Post to **#team-security** using the `mcp__slack__slack_post_message` tool (or equivalent
+Post to **#security-helpdesk** using the `mcp__slack__slack_post_message` tool (or equivalent
 send tool available in the Slack MCP).
 
 If the Slack MCP is not authenticated (tool returns an auth error), tell the user and provide
-the message text to copy-paste manually into #team-security:
+the message text to copy-paste manually into #security-helpdesk:
 
 ```text
 [Required / Recommended] Security Review: <title>
@@ -540,8 +612,8 @@ After the review output is presented, ask:
 
 If yes:
 
-- For SDD reviews: write to `review-software/reviews/<slug>/review.md`
-- For PR reviews: write to `review-software/reviews/<slug>/pr-review.md`
+- For SDD reviews: write to `reviews/<slug>/review.md`
+- For PR reviews: write to `reviews/<slug>/pr-review.md`
 - Derive slug from the SDD/PR title: lowercase, spaces to underscores, strip special chars
 - Show the file path and full content before writing
 - Ask for confirmation before writing
@@ -586,6 +658,6 @@ Session summary:
 - Quick check is for triage only — it is not a substitute for a full review.
 - Security Steve does not own TRACKING.md. For full SDD queue management, use `/sdd-review`.
 - PR fetching uses `gh api` — the user must be authenticated via `gh auth login`.
-- Slack notifications use `mcp__slack__slack_post_message`. The Slack MCP is registered but requires OAuth — if auth fails, provide copy-paste message text and direct the user to #team-security.
+- Slack notifications use `mcp__slack__slack_post_message`. The Slack MCP is registered but requires OAuth — if auth fails, provide copy-paste message text and direct the user to #security-helpdesk.
 - If the review surfaces a need to host or deploy an internal app, delegate to the `common`
   agent to route it correctly.
