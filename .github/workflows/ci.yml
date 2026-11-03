@@ -1,0 +1,65 @@
+name: CI
+
+# The one check every pull request runs, and the one the `main` ruleset requires. The
+# review workflows (sdd-review, pr-review) and the doc deploys are dispatch-driven, so
+# without this a Dependabot bump to .github/scripts/requirements.txt would have no signal
+# at all before it merges.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: Scripts compile and import
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/scripts/requirements.txt
+
+      - name: Install script dependencies
+        run: python -m pip install -r .github/scripts/requirements.txt openai pyyaml
+
+      - name: Compile every script
+        run: python -m py_compile .github/scripts/*.py shared/*.py
+
+      - name: Import the reviewers against the shared model config
+        # The reviewer scripts resolve shared/ai_config.py from the repo root at import
+        # time; a dependency bump that breaks the SDK surface fails here, not in a review.
+        run: |
+          python - <<'EOF'
+          import importlib, sys
+          sys.path.insert(0, ".github/scripts")
+          sys.path.insert(0, ".")
+          for name in ("sdd_notify", "sdd_reviewer", "pr_reviewer"):
+              importlib.import_module(name)
+              print("import ok", name)
+          EOF
+
+      - name: Parse every workflow
+        run: |
+          python - <<'EOF'
+          import glob, yaml
+          for f in sorted(glob.glob(".github/workflows/*.yml")):
+              yaml.safe_load(open(f))
+              print("yaml ok", f)
+          EOF
+
+      - name: Shell syntax
+        run: |
+          for f in .github/scripts/*.sh .setup/*.sh; do bash -n "$f"; done
